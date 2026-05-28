@@ -1,0 +1,2 @@
+# relic-hunter
+Relic Hunter: The Escaping Thief is a turn-based, grid-based stealth and pursuit game developed in Unity. This project demonstrates game AI by combining A* Search for optimal pathfinding and Minimax with Alpha-Beta Pruning for strategic decision-making. Created for PUP CS 3-2 2526, COSC 304 - Introduction to Artificial Intelligence. Created by: Cabbadu, Jocson, Lambohon,  & Salgado.
