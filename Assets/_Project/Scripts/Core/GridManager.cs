@@ -16,6 +16,13 @@ namespace RelicHunter.Core
         private GameObject[,] tiles;
         public HashSet<Vector2Int> permanentWalls = new HashSet<Vector2Int>();
         public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
+        public int maxBarricadesAllowed = 3; 
+        public int barricadeDuration = 4;    
+        public GameObject barricadePrefab;
+        public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
+        public Vector2Int playerPos = new Vector2Int(0, 0);
+        public Vector2Int guardPos = new Vector2Int(8, 8);
+        public Vector2Int exitPos = new Vector2Int(8, 0);
 
         private void Awake()
         {
@@ -71,6 +78,41 @@ namespace RelicHunter.Core
         public bool IsInsideGrid(int x, int y)
         {
             return x >= 0 && x < width && y >= 0 && y < height;
+        }
+
+        public bool TryPlaceBarricade(Vector2Int position)
+        {
+            if (activeBarricades.Count >= maxBarricadesAllowed)
+            {
+                Debug.Log("Barricade placement denied: Max cap reached!");
+                return false;
+            }
+
+            if (!IsTileWalkable(position.x, position.y))
+            {
+                Debug.Log("Barricade placement denied: Tile is blocked or out of bounds!");
+                return false;
+            }
+
+            if (position == playerPos || position == guardPos || position == exitPos)
+            {
+                Debug.Log("Barricade placement denied: Tile is occupied by a character or objective!");
+                return false;
+            }
+
+            activeBarricades.Add(position, barricadeDuration);
+            Debug.Log($"Engine: Barricade placed at {position} for {barricadeDuration} turns.");
+
+            if (barricadePrefab != null)
+            {
+                Vector3 spawnPos = new Vector3(position.x, position.y, 0);
+                GameObject visualObj = Instantiate(barricadePrefab, spawnPos, Quaternion.identity);
+                
+                // Save the game object link so we can reference it when it expires
+                visualBarricades.Add(position, visualObj);
+            }
+
+            return true;
         }
 
         public bool IsTileWalkable(int x, int y)

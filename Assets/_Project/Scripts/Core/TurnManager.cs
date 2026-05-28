@@ -54,7 +54,14 @@ namespace RelicHunter.Core
                 if (gridManager.activeBarricades[key] <= 0)
                 {
                     gridManager.activeBarricades.Remove(key);
-                    Debug.Log($"Engine: Barricade at {key} expired.");
+                    Debug.Log($"Engine: Barricade data at {key} expired.");
+
+                    if (gridManager.visualBarricades.ContainsKey(key))
+                    {
+                        Destroy(gridManager.visualBarricades[key]);
+                        gridManager.visualBarricades.Remove(key);
+                        Debug.Log($"Visuals: Barricade square at {key} removed from scene.");
+                    }
                 }
             }
         }

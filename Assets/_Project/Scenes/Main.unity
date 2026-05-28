@@ -515,6 +515,12 @@ MonoBehaviour:
   height: 9
   tilePrefab: {fileID: 6243763376934753224, guid: 02f87036fee0ad34ebfb7bcb5f0b9ad4, type: 3}
   gridVisualParent: {fileID: 309917373}
+  maxBarricadesAllowed: 3
+  barricadeDuration: 4
+  barricadePrefab: {fileID: 1216635608454189344, guid: 3e44757622af06940b9136d2d9783d07, type: 3}
+  playerPos: {x: 0, y: 0}
+  guardPos: {x: 8, y: 8}
+  exitPos: {x: 8, y: 0}
 --- !u!4 &1480344122
 Transform:
   m_ObjectHideFlags: 0
