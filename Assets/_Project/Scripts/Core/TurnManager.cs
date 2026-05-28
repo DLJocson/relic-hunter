@@ -7,6 +7,22 @@ namespace RelicHunter.Core
     /// </summary>
     public class TurnManager : MonoBehaviour
     {
-        // Implementation will be added
+        public enum TurnState
+        {
+            PlayerTurn,
+            GuardTurn
+        }
+
+        public TurnState currentTurn = TurnState.PlayerTurn;
+
+        public void EndPlayerTurn()
+        {
+            currentTurn = TurnState.GuardTurn;
+        }
+
+        public void EndGuardTurn()
+        {
+            currentTurn = TurnState.PlayerTurn;
+        }
     }
 }

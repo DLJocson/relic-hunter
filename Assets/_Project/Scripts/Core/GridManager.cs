@@ -7,6 +7,24 @@ namespace RelicHunter.Core
     /// </summary>
     public class GridManager : MonoBehaviour
     {
-        // Implementation will be added
+        public int width = 9;
+        public int height = 9;
+        private bool[,] walls;
+
+        private void Awake()
+        {
+            walls = new bool[width, height];
+        }
+
+        public bool IsInsideGrid(int x, int y)
+        {
+            return x >= 0 && x < width && y >= 0 && y < height;
+        }
+
+        public bool IsWalkable(int x, int y)
+        {
+            if (!IsInsideGrid(x, y)) return false;
+            return !walls[x, y];
+        }
     }
 }
