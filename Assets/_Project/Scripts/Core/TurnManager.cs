@@ -15,6 +15,11 @@ namespace RelicHunter.Core
 
         public TurnState currentTurn = TurnState.PlayerTurn;
 
+        private void Start()
+        {
+            Debug.Log("TurnManager loaded");
+        }
+
         public void EndPlayerTurn()
         {
             currentTurn = TurnState.GuardTurn;

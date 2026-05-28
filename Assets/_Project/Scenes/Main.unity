@@ -148,6 +148,7 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 694427a3b5968614298a4a9996221e4e, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RelicHunter.Core.TurnManager
+  currentTurn: 0
 --- !u!4 &115898430
 Transform:
   m_ObjectHideFlags: 0
@@ -281,6 +282,9 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: 2b9213bf5da75a14e8feaf83e4fa41bc, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RelicHunter.Player.PlayerController
+  gridManager: {fileID: 1480344121}
+  turnManager: {fileID: 115898429}
+  gridPosition: {x: 0, y: 0}
 --- !u!212 &1098068565
 SpriteRenderer:
   serializedVersion: 2
@@ -476,6 +480,8 @@ MonoBehaviour:
   m_Script: {fileID: 11500000, guid: a59e89af3c177da4d9bf448665ddd967, type: 3}
   m_Name: 
   m_EditorClassIdentifier: Assembly-CSharp::RelicHunter.Core.GridManager
+  width: 9
+  height: 9
 --- !u!4 &1480344122
 Transform:
   m_ObjectHideFlags: 0

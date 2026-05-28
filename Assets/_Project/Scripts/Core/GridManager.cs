@@ -14,6 +14,7 @@ namespace RelicHunter.Core
         private void Awake()
         {
             walls = new bool[width, height];
+            Debug.Log("GridManager loaded");
         }
 
         public bool IsInsideGrid(int x, int y)

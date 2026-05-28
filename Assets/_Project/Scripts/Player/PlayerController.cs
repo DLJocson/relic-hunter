@@ -9,11 +9,13 @@ namespace RelicHunter.Player
     public class PlayerController : MonoBehaviour
     {
         public GridManager gridManager;
+        public TurnManager turnManager;
         public Vector2Int gridPosition;
 
         private void Start()
         {
             transform.position = new Vector3(gridPosition.x, gridPosition.y, 0);
+            Debug.Log("PlayerController loaded");
         }
 
         private void Update()
