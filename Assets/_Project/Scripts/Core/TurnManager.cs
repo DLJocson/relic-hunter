@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace RelicHunter.Core
 {
@@ -10,24 +11,52 @@ namespace RelicHunter.Core
         public enum TurnState
         {
             PlayerTurn,
-            GuardTurn
+            GuardTurn,
+            Processing
         }
 
         public TurnState currentTurn = TurnState.PlayerTurn;
+        private GridManager gridManager;
 
         private void Start()
         {
-            Debug.Log("TurnManager loaded");
+            gridManager = Object.FindFirstObjectByType<GridManager>();
+            Debug.Log("TurnManager: Game initialized on Player Turn.");
         }
 
         public void EndPlayerTurn()
         {
+            currentTurn = TurnState.Processing;
+            
+            if (gridManager != null)
+            {
+                TickBarricades();
+            }
+
             currentTurn = TurnState.GuardTurn;
+            Debug.Log("TurnManager: It is now the Guard's Turn.");
+            
+            EndGuardTurn(); 
         }
 
         public void EndGuardTurn()
         {
             currentTurn = TurnState.PlayerTurn;
+            Debug.Log("TurnManager: It is now the Player's Turn.");
+        }
+
+        private void TickBarricades()
+        {
+            List<Vector2Int> keys = new List<Vector2Int>(gridManager.activeBarricades.Keys);
+            foreach (Vector2Int key in keys)
+            {
+                gridManager.activeBarricades[key]--;
+                if (gridManager.activeBarricades[key] <= 0)
+                {
+                    gridManager.activeBarricades.Remove(key);
+                    Debug.Log($"Engine: Barricade at {key} expired.");
+                }
+            }
         }
     }
 }

@@ -20,6 +20,8 @@ namespace RelicHunter.Player
 
         private void Update()
         {
+            if (turnManager == null || turnManager.currentTurn != TurnManager.TurnState.PlayerTurn)
+                return;
             if (Input.GetKeyDown(KeyCode.W))
                 TryMove(Vector2Int.up);
             else if (Input.GetKeyDown(KeyCode.S))
@@ -34,10 +36,12 @@ namespace RelicHunter.Player
         {
             Vector2Int target = gridPosition + direction;
 
-            if (gridManager != null && gridManager.IsWalkable(target.x, target.y))
+            if (gridManager != null && gridManager.IsTileWalkable(target.x, target.y))
             {
                 gridPosition = target;
                 transform.position = new Vector3(gridPosition.x, gridPosition.y, 0);
+                
+                turnManager.EndPlayerTurn();
             }
         }
     }

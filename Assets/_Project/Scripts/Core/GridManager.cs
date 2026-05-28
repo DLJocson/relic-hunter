@@ -1,4 +1,5 @@
 using UnityEngine;
+using System.Collections.Generic;
 
 namespace RelicHunter.Core
 {
@@ -13,6 +14,8 @@ namespace RelicHunter.Core
         public Transform gridVisualParent;
         private bool[,] walls;
         private GameObject[,] tiles;
+        public HashSet<Vector2Int> permanentWalls = new HashSet<Vector2Int>();
+        public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
 
         private void Awake()
         {
@@ -70,10 +73,17 @@ namespace RelicHunter.Core
             return x >= 0 && x < width && y >= 0 && y < height;
         }
 
-        public bool IsWalkable(int x, int y)
+        public bool IsTileWalkable(int x, int y)
         {
-            if (!IsInsideGrid(x, y)) return false;
-            return !walls[x, y];
+            Vector2Int target = new Vector2Int(x, y);
+
+            if (x < 0 || x >= width || y < 0 || y >= height) return false;
+
+            if (permanentWalls.Contains(target)) return false;
+
+            if (activeBarricades.ContainsKey(target)) return false;
+
+            return true;
         }
     }
 }
