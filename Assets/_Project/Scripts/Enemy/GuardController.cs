@@ -36,6 +36,16 @@ namespace RelicHunter.Enemy
             ExecuteGuardTurnWithBarricadeChecks();
         }
 
+        /// <summary>
+        /// Public helper called by GameManager to teleport guard during round changes
+        /// </summary>
+        public void ResetToPosition(Vector2Int newGridPos)
+        {
+            CurrentGridPos = newGridPos;
+            SnapTransformToGrid();
+            RegisterGuardPosition();
+        }
+
         private void ExecuteGuardTurnWithBarricadeChecks()
         {
             ResolveSceneReferences();
@@ -48,7 +58,7 @@ namespace RelicHunter.Enemy
 
             Vector2Int thiefPos = gridManager.playerPos;
             Vector2Int bestStep = CurrentGridPos;
-
+            
             int dx = System.Math.Sign(thiefPos.x - CurrentGridPos.x);
             int dy = System.Math.Sign(thiefPos.y - CurrentGridPos.y);
 
@@ -93,12 +103,10 @@ namespace RelicHunter.Enemy
             SnapTransformToGrid();
             RegisterGuardPosition();
 
-            Debug.Log($"[GuardController] Guard calculated step to {CurrentGridPos}. Checking terminal game status.");
-
             if (turnManager != null)
             {
                 bool gameEnded = turnManager.CheckWinLossConditions();
-                if (gameEnded) return;
+                if (gameEnded) return; 
             }
 
             EndGuardTurnSafely();

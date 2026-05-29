@@ -146,7 +146,7 @@ namespace RelicHunter.Core
                 
                 if (gameManager != null)
                 {
-                    gameManager.EndRound(true); // true = Player won
+                    gameManager.EndRound(true); 
                 }
                 return true;
             }

@@ -6,6 +6,7 @@ using System;
 using UnityEngine;
 using RelicHunter.Core;
 using RelicHunter.Player;
+using RelicHunter.Enemy;
 
 public class GameManager : MonoBehaviour
 {
@@ -35,6 +36,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private GridManager gridManager;
     [SerializeField] private TurnManager turnManager;
     [SerializeField] private PlayerController playerController;
+    [SerializeField] private GuardController guardController;
 
     [Header("Round Definitions")]
     [SerializeField] private RoundDefinition[] rounds = new RoundDefinition[3];
@@ -45,9 +47,6 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int guardWins = 0;
 
     public MatchState CurrentMatchState { get; private set; } = MatchState.NotStarted;
-
-    public int CurrentGuardSpeed { get; private set; }
-    public int CurrentMinimaxDepth { get; private set; }
 
     private void Awake()
     {
@@ -102,10 +101,18 @@ public class GameManager : MonoBehaviour
         RoundDefinition round = rounds[index];
         CurrentMatchState = MatchState.RoundActive;
 
-        CurrentGuardSpeed = round.guardSpeed;
-        CurrentMinimaxDepth = round.minimaxDepth;
+        if (gridManager != null)
+        {
+            gridManager.ApplyRoundSettings(round.maxBarricades, round.barricadeDuration);
+            gridManager.ClearAllBarricades();
+        }
 
-        Debug.Log($"[GameManager] Match state activated: {round.roundName}");
+        ResetPositionsForNewRound();
+
+        Debug.Log($"<color=orange>=========================================</color>");
+        Debug.Log($"<color=lime><b>[STARTING {round.roundName.ToUpper()}]</b></color>");
+        Debug.Log($"<color=orange>Current Match Score -> Player: {playerWins} | Guard: {guardWins}</color>");
+        Debug.Log($"<color=orange>=========================================</color>");
         
         if (turnManager != null)
         {
@@ -121,12 +128,17 @@ public class GameManager : MonoBehaviour
         if (playerWon) playerWins++;
         else guardWins++;
 
-        Debug.Log($"[GameManager] Round complete. Score: Player {playerWins} - Guard {guardWins}");
-
         if (playerWins >= 2 || guardWins >= 2)
         {
             CurrentMatchState = MatchState.MatchOver;
-            Debug.Log("[GameManager] Match has resolved a final winner.");
+            
+            if (turnManager != null)
+                turnManager.currentTurn = TurnManager.TurnState.Processing; // Lock turn system permanently
+
+            string absoluteWinner = playerWins >= 2 ? "PLAYER (THIEF)" : "GUARD AI";
+            
+            Debug.Log($"<color=cyan><b>[🏆 MATCH OVER 🏆]</b> Final Winner: {absoluteWinner}!</color>");
+            Debug.Log($"<color=cyan>Final Series Score -> Player: {playerWins} | Guard: {guardWins}</color>");
             return;
         }
 
@@ -134,10 +146,31 @@ public class GameManager : MonoBehaviour
         StartRound();
     }
 
+    private void ResetPositionsForNewRound()
+    {
+        if (playerController != null)
+        {
+            playerController.gridPosition = new Vector2Int(0, 0);
+            playerController.SnapTransformToGrid();
+            if (gridManager != null) gridManager.playerPos = new Vector2Int(0, 0);
+        }
+
+        if (guardController != null)
+        {
+            guardController.ResetToPosition(new Vector2Int(8, 8));
+        }
+
+        if (gridManager != null)
+        {
+            gridManager.guardPos = new Vector2Int(8, 8);
+        }
+    }
+
     private void ResolveSceneReferences()
     {
         if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
         if (turnManager == null) turnManager = FindFirstObjectByType<TurnManager>();
         if (playerController == null) playerController = FindFirstObjectByType<PlayerController>();
+        if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
     }
 }
