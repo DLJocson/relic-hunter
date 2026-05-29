@@ -16,11 +16,32 @@ namespace RelicHunter.Player
         {
             transform.position = new Vector3(gridPosition.x, gridPosition.y, 0);
 
+            turnManager = GameObject.FindFirstObjectByType<TurnManager>();
+
+            if (turnManager == null)
+            {
+                // Try searching by the literal name of the Hierarchy object instead!
+                GameObject tmObject = GameObject.Find("TurnManager");
+                if (tmObject != null)
+                {
+                    turnManager = tmObject.GetComponent<TurnManager>();
+                }
+            }
+
             if (gridManager != null)
             {
                 gridManager.playerPos = gridPosition;
             }
             Debug.Log("PlayerController loaded");
+
+            if (turnManager != null)
+            {
+                Debug.Log("<color=green>SUCCESS: PlayerController successfully linked to TurnManager object!</color>");
+            }
+            else
+            {
+                Debug.LogError("QA Alert: Player cannot see the TurnManager script component!");
+            }
         }
 
         private void Update()

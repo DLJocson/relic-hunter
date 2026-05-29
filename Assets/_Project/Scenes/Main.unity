@@ -521,6 +521,8 @@ MonoBehaviour:
   playerPos: {x: 0, y: 0}
   guardPos: {x: 8, y: 8}
   exitPos: {x: 8, y: 0}
+  exitPrefab: {fileID: 1779527130164335825, guid: 25b5bd2dc47233945aa2028d7cf28654, type: 3}
+  guardPrefab: {fileID: 7488274205739122568, guid: fe75184c015c31a4a981d05e5df87b73, type: 3}
 --- !u!4 &1480344122
 Transform:
   m_ObjectHideFlags: 0
