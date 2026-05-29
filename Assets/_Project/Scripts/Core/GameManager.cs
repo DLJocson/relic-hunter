@@ -26,7 +26,7 @@ public class GameManager : MonoBehaviour
         public string roundName;
         public int gridWidth;
         public int gridHeight;
-        public int guardSpeed;
+        public float guardSpeed;
         public int barricadeDuration;
         public int maxBarricades;
         public int minimaxDepth;
@@ -42,7 +42,7 @@ public class GameManager : MonoBehaviour
     [SerializeField] private RoundDefinition[] rounds = new RoundDefinition[3];
 
     [Header("Match Tracking")]
-    [SerializeField] private int currentRoundIndex = 1; 
+    [SerializeField] private int currentRoundIndex = 1;
     [SerializeField] private int playerWins = 0;
     [SerializeField] private int guardWins = 0;
 
@@ -73,12 +73,12 @@ public class GameManager : MonoBehaviour
         if (rounds == null || rounds.Length < 3)
             rounds = new RoundDefinition[3];
 
-        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1, 4, 3, 1);
-        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1, 3, 2, 2);
-        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2, 2, 1, 3);
+        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1);
+        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2);
+        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3);
     }
 
-    private void SetDefaultRoundIfEmpty(int index, string name, int width, int height, int speed, int duration, int maxB, int depth)
+    private void SetDefaultRoundIfEmpty(int index, string name, int width, int height, float speed, int duration, int maxB, int depth)
     {
         if (index < 0 || index >= rounds.Length || !string.IsNullOrWhiteSpace(rounds[index].roundName)) return;
         rounds[index] = new RoundDefinition { roundName = name, gridWidth = width, gridHeight = height, guardSpeed = speed, barricadeDuration = duration, maxBarricades = maxB, minimaxDepth = depth };
@@ -111,13 +111,19 @@ public class GameManager : MonoBehaviour
         // 2. Teleport characters based on the new boundaries
         ResetPositionsForNewRound();
 
+        // 3. Set guard speed for this round
+        if (guardController != null)
+        {
+            guardController.SetGuardSpeed(round.guardSpeed);
+        }
+
         // ADDED EDITS: Log details for round start, type, dimension settings, and series scores
         Debug.Log($"<color=orange><b>===================================================</b></color>");
         Debug.Log($"<color=lime><b>[STARTING {round.roundName.ToUpper()}]</b></color>");
         Debug.Log($"<color=yellow>📐 Grid Dimensions: {round.gridWidth} x {round.gridHeight}</color>");
         Debug.Log($"<color=white>📊 Current Match Score -> 👤 Player: {playerWins} | 🤖 Guard AI: {guardWins}</color>");
         Debug.Log($"<color=orange><b>===================================================</b></color>");
-        
+
         if (turnManager != null)
         {
             turnManager.currentTurn = TurnManager.TurnState.PlayerTurn;
@@ -162,12 +168,12 @@ public class GameManager : MonoBehaviour
         if (playerWins >= 2 || guardWins >= 2)
         {
             CurrentMatchState = MatchState.MatchOver;
-            
+
             if (turnManager != null)
                 turnManager.currentTurn = TurnManager.TurnState.Processing; // Lock turn system permanently
 
             string absoluteWinner = playerWins >= 2 ? "PLAYER (THIEF)" : "GUARD AI";
-            
+
             // ADDED EDITS: Enhanced prominence for the final championship message block
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
             Debug.Log($"<color=cyan><b>🏆🏆🏆 [MATCH OVER - FINAL SERIES WINNER] 🏆🏆🏆</b></color>");

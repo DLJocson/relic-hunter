@@ -4,7 +4,8 @@
 
 using UnityEngine;
 using System.Collections.Generic;
-using RelicHunter.Enemy; 
+using RelicHunter.Enemy;
+using RelicHunter.Player;
 
 namespace RelicHunter.Core
 {
@@ -16,7 +17,7 @@ namespace RelicHunter.Core
         {
             PlayerTurn,
             GuardTurn,
-            Processing 
+            Processing
         }
 
         public TurnState currentTurn = TurnState.PlayerTurn;
@@ -53,8 +54,8 @@ namespace RelicHunter.Core
             currentTurn = TurnState.Processing;
 
             if (CheckWinLossConditions()) return;
-            
-            try 
+
+            try
             {
                 TickBarricades();
             }
@@ -64,7 +65,7 @@ namespace RelicHunter.Core
             }
 
             currentTurn = TurnState.GuardTurn;
-            
+
             if (guardController != null)
             {
                 guardController.TakeTurn();
@@ -73,11 +74,6 @@ namespace RelicHunter.Core
             {
                 EndGuardTurn();
             }
-        }
-
-        public void RegisterGuardPosition(Vector2Int newPos)
-        {
-            CheckWinLossConditions();
         }
 
         public void EndGuardTurn()
@@ -131,7 +127,7 @@ namespace RelicHunter.Core
             {
                 currentTurn = TurnState.Processing;
                 Debug.Log("<color=red><b>[GAME OVER]</b> The Guard caught the player!</color>");
-                
+
                 if (gameManager != null)
                 {
                     gameManager.EndRound(false);
@@ -143,10 +139,10 @@ namespace RelicHunter.Core
             {
                 currentTurn = TurnState.Processing;
                 Debug.Log("<color=green><b>[VICTORY]</b> The Thief escaped through the exit!</color>");
-                
+
                 if (gameManager != null)
                 {
-                    gameManager.EndRound(true); 
+                    gameManager.EndRound(true);
                 }
                 return true;
             }

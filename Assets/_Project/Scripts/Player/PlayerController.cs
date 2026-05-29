@@ -14,6 +14,11 @@ namespace RelicHunter.Player
         public TurnManager turnManager;
         public Vector2Int gridPosition;
 
+        [Header("Movement")]
+        [SerializeField] private float repeatDelay = 0.5f;
+        private Vector2Int lastDirection = Vector2Int.zero;
+        private float timeSinceLastMove = 0f;
+
         private void Start()
         {
             SnapTransformToGrid();
@@ -26,17 +31,51 @@ namespace RelicHunter.Player
             if (turnManager == null || turnManager.currentTurn != TurnManager.TurnState.PlayerTurn)
                 return;
 
-            // Movement Keys
-            if (Input.GetKeyDown(KeyCode.W))      TryMove(Vector2Int.up);
-            else if (Input.GetKeyDown(KeyCode.S)) TryMove(Vector2Int.down);
-            else if (Input.GetKeyDown(KeyCode.A)) TryMove(Vector2Int.left);
-            else if (Input.GetKeyDown(KeyCode.D)) TryMove(Vector2Int.right);
-            
+            // Movement Keys - initial input uses GetKeyDown, repeat uses held key + delay
+            Vector2Int keyDownDirection = GetKeyDownInput();
+            if (keyDownDirection != Vector2Int.zero)
+            {
+                // First keypress of this frame - move immediately
+                TryMove(keyDownDirection);
+                lastDirection = keyDownDirection;
+                timeSinceLastMove = 0f;
+            }
+            else if (lastDirection != Vector2Int.zero)
+            {
+                // Check if same direction is still held
+                Vector2Int heldDirection = GetDirectionalInput();
+                if (heldDirection == lastDirection)
+                {
+                    // Same direction still held - repeat after delay
+                    timeSinceLastMove += Time.deltaTime;
+                    if (timeSinceLastMove >= repeatDelay)
+                    {
+                        TryMove(heldDirection);
+                        timeSinceLastMove = 0f;
+                    }
+                }
+                else
+                {
+                    // Direction released or changed
+                    lastDirection = Vector2Int.zero;
+                    timeSinceLastMove = 0f;
+                }
+            }
+
             // Barricade Keys
-            else if (Input.GetKeyDown(KeyCode.UpArrow))    TryDropBarricade(Vector2Int.up);
-            else if (Input.GetKeyDown(KeyCode.DownArrow))  TryDropBarricade(Vector2Int.down);
-            else if (Input.GetKeyDown(KeyCode.LeftArrow))  TryDropBarricade(Vector2Int.left);
+            if (Input.GetKeyDown(KeyCode.UpArrow)) TryDropBarricade(Vector2Int.up);
+            else if (Input.GetKeyDown(KeyCode.DownArrow)) TryDropBarricade(Vector2Int.down);
+            else if (Input.GetKeyDown(KeyCode.LeftArrow)) TryDropBarricade(Vector2Int.left);
             else if (Input.GetKeyDown(KeyCode.RightArrow)) TryDropBarricade(Vector2Int.right);
+        }
+
+        private Vector2Int GetKeyDownInput()
+        {
+            if (Input.GetKeyDown(KeyCode.W)) return Vector2Int.up;
+            if (Input.GetKeyDown(KeyCode.S)) return Vector2Int.down;
+            if (Input.GetKeyDown(KeyCode.A)) return Vector2Int.left;
+            if (Input.GetKeyDown(KeyCode.D)) return Vector2Int.right;
+            return Vector2Int.zero;
         }
 
         private void TryMove(Vector2Int direction)
@@ -79,6 +118,15 @@ namespace RelicHunter.Player
                     turnManager.EndPlayerTurn();
                 }
             }
+        }
+
+        private Vector2Int GetDirectionalInput()
+        {
+            if (Input.GetKey(KeyCode.W)) return Vector2Int.up;
+            if (Input.GetKey(KeyCode.S)) return Vector2Int.down;
+            if (Input.GetKey(KeyCode.A)) return Vector2Int.left;
+            if (Input.GetKey(KeyCode.D)) return Vector2Int.right;
+            return Vector2Int.zero;
         }
 
         public void SnapTransformToGrid()

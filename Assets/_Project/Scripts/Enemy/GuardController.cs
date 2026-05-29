@@ -5,7 +5,7 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using RelicHunter.Core; 
+using RelicHunter.Core;
 
 namespace RelicHunter.Enemy
 {
@@ -13,6 +13,10 @@ namespace RelicHunter.Enemy
     {
         [Header("Starting Position")]
         [SerializeField] private Vector2Int startGridPos = new Vector2Int(8, 8);
+
+        [Header("Movement Speed")]
+        private float guardSpeed = 1f;
+        private float movementAccumulator = 0f;
 
         public Vector2Int CurrentGridPos { get; private set; }
 
@@ -31,9 +35,26 @@ namespace RelicHunter.Enemy
             RegisterGuardPosition();
         }
 
+        public void SetGuardSpeed(float speed)
+        {
+            guardSpeed = speed;
+            movementAccumulator = 0f;
+        }
+
         public void TakeTurn()
         {
-            ExecuteGuardTurnWithBarricadeChecks();
+            // Accumulate movement points
+            movementAccumulator += guardSpeed;
+
+            // Move tiles equal to accumulated movement
+            while (movementAccumulator >= 1f)
+            {
+                ExecuteGuardTurnWithBarricadeChecks();
+                movementAccumulator -= 1f;
+            }
+
+            // Signal end of guard turn
+            EndGuardTurnSafely();
         }
 
         /// <summary>
@@ -58,7 +79,7 @@ namespace RelicHunter.Enemy
 
             Vector2Int thiefPos = gridManager.playerPos;
             Vector2Int bestStep = CurrentGridPos;
-            
+
             int dx = System.Math.Sign(thiefPos.x - CurrentGridPos.x);
             int dy = System.Math.Sign(thiefPos.y - CurrentGridPos.y);
 
@@ -106,10 +127,8 @@ namespace RelicHunter.Enemy
             if (turnManager != null)
             {
                 bool gameEnded = turnManager.CheckWinLossConditions();
-                if (gameEnded) return; 
+                if (gameEnded) return;
             }
-
-            EndGuardTurnSafely();
         }
 
         private void SnapTransformToGrid()
