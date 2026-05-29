@@ -48,6 +48,43 @@ namespace RelicHunter.Core
             AutoCenterCamera();
         }
 
+        // =========================================================================
+        // DYNAMIC ROUND RESIZING METHODS (ADDED)
+        // =========================================================================
+
+        /// <summary>
+        /// Public method called by GameManager to dynamically alter grid scale between rounds.
+        /// </summary>
+        public void UpdateGridDimensions(int newWidth, int newHeight)
+        {
+            width = newWidth;
+            height = newHeight;
+
+            ClearPhysicalGridVisuals();
+            SpawnGrid();
+            SpawnExitVisual();
+            AutoCenterCamera();
+        }
+
+        private void ClearPhysicalGridVisuals()
+        {
+            ClearAllBarricades();
+
+            if (gridVisualParent != null)
+            {
+                foreach (Transform child in gridVisualParent)
+                {
+                    Destroy(child.gameObject);
+                }
+            }
+            
+            permanentWalls.Clear();
+        }
+
+        // =========================================================================
+        // CORE GRID LOGIC & SPANNING
+        // =========================================================================
+
         private void SpawnGrid()
         {
             if (tilePrefab == null) return;
@@ -58,7 +95,7 @@ namespace RelicHunter.Core
                     Instantiate(tilePrefab, new Vector3(x, y, 0), Quaternion.identity, gridVisualParent);
                 }
             }
-            Debug.Log("Grid spawned successfully.");
+            Debug.Log($"Grid spawned successfully at size: {width}x{height}");
         }
 
         private void AutoCenterCamera()
@@ -120,7 +157,12 @@ namespace RelicHunter.Core
             {
                 exitPos = new Vector2Int(width - 1, 0);
                 Vector3 spawnPos = new Vector3(exitPos.x, exitPos.y, 0);
-                Instantiate(exitPrefab, spawnPos, Quaternion.identity, gridVisualParent);
+
+                GameObject oldExit = GameObject.FindWithTag("Exit");
+                if (oldExit != null) Destroy(oldExit);
+
+                GameObject exitObj = Instantiate(exitPrefab, spawnPos, Quaternion.identity, gridVisualParent);
+                exitObj.tag = "Exit";
             }
         }
 
@@ -135,7 +177,16 @@ namespace RelicHunter.Core
             return true;
         }
 
-        public void ClearAllBarricades() { activeBarricades.Clear(); visualBarricades.Clear(); }
+        public void ClearAllBarricades() 
+        { 
+            foreach (var kvp in visualBarricades)
+            {
+                if (kvp.Value != null) Destroy(kvp.Value);
+            }
+            activeBarricades.Clear(); 
+            visualBarricades.Clear(); 
+        }
+        
         public void ApplyRoundSettings(int maxB, int duration) { maxBarricadesAllowed = maxB; barricadeDuration = duration; }
     }
 }
