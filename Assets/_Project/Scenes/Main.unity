@@ -267,32 +267,33 @@ MonoBehaviour:
   m_EditorHideFlags: 0
   m_Script: {fileID: 11500000, guid: 9815ea3dbdb4f6249be188d7fe2f14b9, type: 3}
   m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::RelicHunter.Core.GameManager
+  m_EditorClassIdentifier: Assembly-CSharp::GameManager
   gridManager: {fileID: 0}
   turnManager: {fileID: 0}
   playerController: {fileID: 0}
+  guardController: {fileID: 0}
   rounds:
-  - roundName: Round 1 (Easy)
-    gridWidth: 9
-    gridHeight: 9
-    guardSpeed: 1
-    barricadeDuration: 4
-    maxBarricades: 3
-    minimaxDepth: 1
-  - roundName: Round 2 (Medium)
-    gridWidth: 13
-    gridHeight: 13
-    guardSpeed: 1
-    barricadeDuration: 3
-    maxBarricades: 2
-    minimaxDepth: 2
-  - roundName: Round 3 (Hard)
-    gridWidth: 19
-    gridHeight: 19
-    guardSpeed: 2
-    barricadeDuration: 2
-    maxBarricades: 1
-    minimaxDepth: 3
+  - roundName: 
+    gridWidth: 0
+    gridHeight: 0
+    guardSpeed: 0
+    barricadeDuration: 0
+    maxBarricades: 0
+    minimaxDepth: 0
+  - roundName: 
+    gridWidth: 0
+    gridHeight: 0
+    guardSpeed: 0
+    barricadeDuration: 0
+    maxBarricades: 0
+    minimaxDepth: 0
+  - roundName: 
+    gridWidth: 0
+    gridHeight: 0
+    guardSpeed: 0
+    barricadeDuration: 0
+    maxBarricades: 0
+    minimaxDepth: 0
   currentRoundIndex: 1
   playerWins: 0
   guardWins: 0
