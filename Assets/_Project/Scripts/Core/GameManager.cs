@@ -1,5 +1,5 @@
 // =============================================================================
-// GameManager.cs — Stable match loop progression variant.
+// GameManager.cs — Handles game mechanics
 // =============================================================================
 
 using System;

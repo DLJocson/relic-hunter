@@ -1,5 +1,5 @@
 // =============================================================================
-// GridManager.cs — Crash-Resistant Grid Variant
+// GridManager.cs — Handles playing ground
 // =============================================================================
 
 using UnityEngine;

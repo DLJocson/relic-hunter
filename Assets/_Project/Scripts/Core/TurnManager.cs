@@ -1,5 +1,5 @@
 // =============================================================================
-// TurnManager.cs — Bulletproof State Router Variant
+// TurnManager.cs — Handles player and guard turn-taking
 // =============================================================================
 
 using UnityEngine;

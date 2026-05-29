@@ -1,5 +1,5 @@
 // =============================================================================
-// GuardController.cs — Controlled Snap Variant to prevent state freezes.
+// GuardController.cs - Handles guard movement and behavior
 // =============================================================================
 
 using System.Collections;
@@ -29,11 +29,12 @@ namespace RelicHunter.Enemy
             ResolveSceneReferences();
             SnapTransformToGrid();
             RegisterGuardPosition();
+            
+            Debug.Log("[GuardController] Active in scene and linked to system trackers.");
         }
 
         public void TakeTurn()
         {
-            // Forces the turn execution to run immediately and safely without frame locks
             ExecuteGuardTurnInstant();
         }
 
@@ -51,24 +52,18 @@ namespace RelicHunter.Enemy
             Vector2Int thiefPos = gridManager.playerPos;
             Vector2Int nextStep = CurrentGridPos;
 
-            // Simple direct tracking logic
             if (nextStep.x > thiefPos.x) nextStep.x--;
             else if (nextStep.x < thiefPos.x) nextStep.x++;
             else if (nextStep.y > thiefPos.y) nextStep.y--;
             else if (nextStep.y < thiefPos.y) nextStep.y++;
 
-            // Update local coordinates
             CurrentGridPos = nextStep;
             
-            // Instantly move the sprite physically on screen (removes Coroutine yield risks)
             SnapTransformToGrid();
-            
-            // Register positions with engine trackers
             RegisterGuardPosition();
 
-            Debug.Log($"[GuardController] Guard snapped to {CurrentGridPos}. Completing turn block.");
+            Debug.Log($"[GuardController] Guard stepped to {CurrentGridPos}.");
             
-            // Absolutely forces TurnManager back to PlayerTurn state instantly
             EndGuardTurnSafely();
         }
 
