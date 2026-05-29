@@ -19,7 +19,6 @@ namespace RelicHunter.Player
             SnapTransformToGrid();
             ResolveSceneReferences();
             RegisterPlayerPosition();
-            Debug.Log("[PlayerController] Initialized successfully.");
         }
 
         private void Update()
@@ -27,11 +26,13 @@ namespace RelicHunter.Player
             if (turnManager == null || turnManager.currentTurn != TurnManager.TurnState.PlayerTurn)
                 return;
 
+            // Movement Keys
             if (Input.GetKeyDown(KeyCode.W))      TryMove(Vector2Int.up);
             else if (Input.GetKeyDown(KeyCode.S)) TryMove(Vector2Int.down);
             else if (Input.GetKeyDown(KeyCode.A)) TryMove(Vector2Int.left);
             else if (Input.GetKeyDown(KeyCode.D)) TryMove(Vector2Int.right);
             
+            // Barricade Keys
             else if (Input.GetKeyDown(KeyCode.UpArrow))    TryDropBarricade(Vector2Int.up);
             else if (Input.GetKeyDown(KeyCode.DownArrow))  TryDropBarricade(Vector2Int.down);
             else if (Input.GetKeyDown(KeyCode.LeftArrow))  TryDropBarricade(Vector2Int.left);
@@ -48,8 +49,21 @@ namespace RelicHunter.Player
                 SnapTransformToGrid();
                 RegisterPlayerPosition();
 
-                Debug.Log($"[PlayerController] Player moved to {gridPosition}. Ending turn.");
-                turnManager.EndPlayerTurn();
+                Debug.Log($"[PlayerController] Player stepped onto {gridPosition}. Intercepting condition checks.");
+
+                if (turnManager != null)
+                {
+                    bool gameHasEnded = turnManager.CheckWinLossConditions();
+                    if (gameHasEnded)
+                    {
+                        return;
+                    }
+                }
+
+                if (turnManager != null)
+                {
+                    turnManager.EndPlayerTurn();
+                }
             }
         }
 
@@ -60,9 +74,8 @@ namespace RelicHunter.Player
             if (gridManager != null)
             {
                 bool success = gridManager.TryPlaceBarricade(targetPos);
-                if (success)
+                if (success && turnManager != null)
                 {
-                    Debug.Log($"[PlayerController] Barricade dropped at {targetPos}. Ending turn.");
                     turnManager.EndPlayerTurn();
                 }
             }
@@ -88,11 +101,6 @@ namespace RelicHunter.Player
 
             if (gridManager == null)
                 gridManager = GridManager.Instance != null ? GridManager.Instance : FindFirstObjectByType<GridManager>();
-        }
-
-        public void ApplyRoundDifficulty(int maxBarricades, int barricadeDuration)
-        {
-            Debug.Log($"[PlayerController] Dynamic difficulty rules loaded: Max={maxBarricades}");
         }
     }
 }

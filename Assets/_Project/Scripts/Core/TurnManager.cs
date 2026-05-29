@@ -16,12 +16,13 @@ namespace RelicHunter.Core
         {
             PlayerTurn,
             GuardTurn,
-            Processing
+            Processing 
         }
 
         public TurnState currentTurn = TurnState.PlayerTurn;
         private GridManager gridManager;
         private GuardController guardController;
+        private GameManager gameManager;
 
         private void Awake()
         {
@@ -40,14 +41,18 @@ namespace RelicHunter.Core
         {
             if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
+            if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
         }
 
         public void EndPlayerTurn()
         {
             ResolveReferences();
+
+            if (currentTurn == TurnState.Processing) return;
+
             currentTurn = TurnState.Processing;
-            
-            CheckWinLossConditions();
+
+            if (CheckWinLossConditions()) return;
             
             try 
             {
@@ -55,7 +60,7 @@ namespace RelicHunter.Core
             }
             catch (System.Exception ex)
             {
-                Debug.LogError($"[TurnManager Critical Catch] Error inside TickBarricades: {ex.Message}");
+                Debug.LogError($"[TurnManager Error] Inside TickBarricades: {ex.Message}");
             }
 
             currentTurn = TurnState.GuardTurn;
@@ -66,7 +71,6 @@ namespace RelicHunter.Core
             }
             else
             {
-                Debug.LogWarning("[TurnManager] GuardController component not detected in scene. Resetting back to Player turn cleanly.");
                 EndGuardTurn();
             }
         }
@@ -78,6 +82,8 @@ namespace RelicHunter.Core
 
         public void EndGuardTurn()
         {
+            if (currentTurn == TurnState.Processing) return;
+
             currentTurn = TurnState.PlayerTurn;
             Debug.Log("<color=yellow>TurnManager: System refreshed back to Player's Turn.</color>");
         }
@@ -101,8 +107,6 @@ namespace RelicHunter.Core
             foreach (Vector2Int key in keysToRemove)
             {
                 gridManager.activeBarricades.Remove(key);
-                Debug.Log($"Engine: Barricade at {key} expired.");
-
                 if (gridManager.visualBarricades.ContainsKey(key))
                 {
                     if (gridManager.visualBarricades[key] != null)
@@ -114,19 +118,40 @@ namespace RelicHunter.Core
             }
         }
 
-        public void CheckWinLossConditions()
+        /// <summary>
+        /// Evaluates coordinates to see if the round should terminate.
+        /// Returns true if the round has ended.
+        /// </summary>
+        public bool CheckWinLossConditions()
         {
-            if (gridManager == null) return;
-
-            if (gridManager.playerPos == gridManager.exitPos)
-            {
-                Debug.Log("<color=green>Match Event: Thief reached exit tile.</color>");
-            }
+            ResolveReferences();
+            if (gridManager == null) return false;
 
             if (gridManager.playerPos == gridManager.guardPos)
             {
-                Debug.Log("<color=red>Match Event: Guard reached Thief tile.</color>");
+                currentTurn = TurnState.Processing;
+                Debug.Log("<color=red><b>[GAME OVER]</b> The Guard caught the player!</color>");
+                
+                if (gameManager != null)
+                {
+                    gameManager.EndRound(false);
+                }
+                return true;
             }
+
+            if (gridManager.playerPos == gridManager.exitPos)
+            {
+                currentTurn = TurnState.Processing;
+                Debug.Log("<color=green><b>[VICTORY]</b> The Thief escaped through the exit!</color>");
+                
+                if (gameManager != null)
+                {
+                    gameManager.EndRound(true); // true = Player won
+                }
+                return true;
+            }
+
+            return false;
         }
     }
 }

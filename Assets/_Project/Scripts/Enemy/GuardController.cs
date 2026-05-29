@@ -29,41 +29,78 @@ namespace RelicHunter.Enemy
             ResolveSceneReferences();
             SnapTransformToGrid();
             RegisterGuardPosition();
-            
-            Debug.Log("[GuardController] Active in scene and linked to system trackers.");
         }
 
         public void TakeTurn()
         {
-            ExecuteGuardTurnInstant();
+            ExecuteGuardTurnWithBarricadeChecks();
         }
 
-        private void ExecuteGuardTurnInstant()
+        private void ExecuteGuardTurnWithBarricadeChecks()
         {
             ResolveSceneReferences();
 
             if (gridManager == null)
             {
-                Debug.LogWarning("[GuardController] Missing GridManager reference! Releasing turn loop control cleanly.");
                 EndGuardTurnSafely();
                 return;
             }
 
             Vector2Int thiefPos = gridManager.playerPos;
-            Vector2Int nextStep = CurrentGridPos;
+            Vector2Int bestStep = CurrentGridPos;
 
-            if (nextStep.x > thiefPos.x) nextStep.x--;
-            else if (nextStep.x < thiefPos.x) nextStep.x++;
-            else if (nextStep.y > thiefPos.y) nextStep.y--;
-            else if (nextStep.y < thiefPos.y) nextStep.y++;
+            int dx = System.Math.Sign(thiefPos.x - CurrentGridPos.x);
+            int dy = System.Math.Sign(thiefPos.y - CurrentGridPos.y);
 
-            CurrentGridPos = nextStep;
-            
+            bool stepTaken = false;
+
+            if (dx != 0)
+            {
+                Vector2Int testStep = CurrentGridPos + new Vector2Int(dx, 0);
+                if (gridManager.IsTileWalkable(testStep.x, testStep.y))
+                {
+                    bestStep = testStep;
+                    stepTaken = true;
+                }
+            }
+
+            if (!stepTaken && dy != 0)
+            {
+                Vector2Int testStep = CurrentGridPos + new Vector2Int(0, dy);
+                if (gridManager.IsTileWalkable(testStep.x, testStep.y))
+                {
+                    bestStep = testStep;
+                    stepTaken = true;
+                }
+            }
+
+            if (!stepTaken)
+            {
+                Vector2Int[] fallbackDirections = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+                foreach (Vector2Int dir in fallbackDirections)
+                {
+                    Vector2Int testStep = CurrentGridPos + dir;
+                    if (gridManager.IsTileWalkable(testStep.x, testStep.y))
+                    {
+                        bestStep = testStep;
+                        stepTaken = true;
+                        break;
+                    }
+                }
+            }
+
+            CurrentGridPos = bestStep;
             SnapTransformToGrid();
             RegisterGuardPosition();
 
-            Debug.Log($"[GuardController] Guard stepped to {CurrentGridPos}.");
-            
+            Debug.Log($"[GuardController] Guard calculated step to {CurrentGridPos}. Checking terminal game status.");
+
+            if (turnManager != null)
+            {
+                bool gameEnded = turnManager.CheckWinLossConditions();
+                if (gameEnded) return;
+            }
+
             EndGuardTurnSafely();
         }
 
@@ -76,9 +113,6 @@ namespace RelicHunter.Enemy
         {
             if (gridManager != null)
                 gridManager.SetGuardPosition(CurrentGridPos);
-
-            if (turnManager != null)
-                turnManager.RegisterGuardPosition(CurrentGridPos);
         }
 
         private void ResolveSceneReferences()
