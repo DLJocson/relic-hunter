@@ -2,8 +2,9 @@
 // GridManager.cs — Handles playing ground
 // =============================================================================
 
-using UnityEngine;
+using System;
 using System.Collections.Generic;
+using UnityEngine;
 
 namespace RelicHunter.Core
 {
@@ -18,29 +19,33 @@ namespace RelicHunter.Core
         public int Width => width;
         public int Height => height;
 
+        [Header("Visual Prefabs")]
         public GameObject tilePrefab;
+        public GameObject barricadePrefab;
+        public GameObject exitPrefab;
         public Transform gridVisualParent;
-        
+
         public HashSet<Vector2Int> permanentWalls = new HashSet<Vector2Int>();
         public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
         public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
-        
+
         [Header("Rules & Limits")]
-        public int maxBarricadesAllowed = 3; 
-        public int barricadeDuration = 4;    
-        public GameObject barricadePrefab;
-        
+        public int maxBarricadesAllowed = 3;
+        public int barricadeDuration = 4;
+
         [Header("Runtime Tracker Positions")]
         public Vector2Int playerPos = new Vector2Int(0, 0);
         public Vector2Int guardPos = new Vector2Int(8, 8);
         public Vector2Int exitPos = new Vector2Int(8, 0);
-        
-        public GameObject exitPrefab;
 
         private void Awake()
         {
             if (Instance == null) Instance = this;
-            else Destroy(gameObject);
+            else
+            {
+                Destroy(gameObject);
+                return;
+            }
 
             Debug.Log("GridManager initialized");
             SpawnGrid();
@@ -49,12 +54,9 @@ namespace RelicHunter.Core
         }
 
         // =========================================================================
-        // DYNAMIC ROUND RESIZING METHODS (ADDED)
+        // DYNAMIC ROUND RESIZING METHODS
         // =========================================================================
 
-        /// <summary>
-        /// Public method called by GameManager to dynamically alter grid scale between rounds.
-        /// </summary>
         public void UpdateGridDimensions(int newWidth, int newHeight)
         {
             width = newWidth;
@@ -74,20 +76,22 @@ namespace RelicHunter.Core
             {
                 foreach (Transform child in gridVisualParent)
                 {
-                    Destroy(child.gameObject);
+                    if (child != null)
+                        Destroy(child.gameObject);
                 }
             }
-            
+
             permanentWalls.Clear();
         }
 
         // =========================================================================
-        // CORE GRID LOGIC & SPANNING
+        // CORE GRID LOGIC
         // =========================================================================
 
         private void SpawnGrid()
         {
             if (tilePrefab == null) return;
+
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
@@ -95,6 +99,7 @@ namespace RelicHunter.Core
                     Instantiate(tilePrefab, new Vector3(x, y, 0), Quaternion.identity, gridVisualParent);
                 }
             }
+
             Debug.Log($"Grid spawned successfully at size: {width}x{height}");
         }
 
@@ -114,6 +119,22 @@ namespace RelicHunter.Core
         public void SetGuardPosition(Vector2Int newPos)
         {
             guardPos = newPos;
+        }
+
+        public void ApplyRoundSettings(int maxB, int duration)
+        {
+            maxBarricadesAllowed = maxB;
+            barricadeDuration = duration;
+        }
+
+        /// <summary>
+        /// Stub method to prevent GameManager from breaking. 
+        /// Procedural generation is disabled while Ash works on manual level design.
+        /// </summary>
+        public void GenerateProceduralWalls(int seed, float wallDensity, Vector2Int startTile, Vector2Int guardTile, Vector2Int exitTile)
+        {
+            permanentWalls.Clear();
+            // Waiting for Ash's level design integration!
         }
 
         public bool TryPlaceBarricade(Vector2Int position)
@@ -136,7 +157,8 @@ namespace RelicHunter.Core
                 return false;
             }
 
-            if (activeBarricades.ContainsKey(position)) return false;
+            if (activeBarricades.ContainsKey(position))
+                return false;
 
             activeBarricades.Add(position, barricadeDuration);
             Debug.Log($"Engine: Barricade placed at {position} for {barricadeDuration} turns.");
@@ -144,8 +166,8 @@ namespace RelicHunter.Core
             if (barricadePrefab != null)
             {
                 Vector3 spawnPos = new Vector3(position.x, position.y, 0);
-                GameObject visualObj = Instantiate(barricadePrefab, spawnPos, Quaternion.identity);
-                visualBarricades.Add(position, visualObj);
+                GameObject visualObj = Instantiate(barricadePrefab, spawnPos, Quaternion.identity, gridVisualParent);
+                visualBarricades[position] = visualObj;
             }
 
             return true;
@@ -169,24 +191,25 @@ namespace RelicHunter.Core
         public bool IsTileWalkable(int x, int y)
         {
             if (x < 0 || x >= width || y < 0 || y >= height) return false;
-            
+
             Vector2Int target = new Vector2Int(x, y);
+
+            // Still checks permanentWalls so Ash's levels will block movement correctly!
             if (permanentWalls.Contains(target)) return false;
             if (activeBarricades.ContainsKey(target)) return false;
 
             return true;
         }
 
-        public void ClearAllBarricades() 
-        { 
+        public void ClearAllBarricades()
+        {
             foreach (var kvp in visualBarricades)
             {
                 if (kvp.Value != null) Destroy(kvp.Value);
             }
-            activeBarricades.Clear(); 
-            visualBarricades.Clear(); 
+
+            activeBarricades.Clear();
+            visualBarricades.Clear();
         }
-        
-        public void ApplyRoundSettings(int maxB, int duration) { maxBarricadesAllowed = maxB; barricadeDuration = duration; }
     }
 }

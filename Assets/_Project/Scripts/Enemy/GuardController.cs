@@ -2,7 +2,7 @@
 // GuardController.cs - Handles guard movement and behavior
 // =============================================================================
 
-using System.Collections;
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 using RelicHunter.Core;
@@ -18,7 +18,12 @@ namespace RelicHunter.Enemy
         private float guardSpeed = 1f;
         private float movementAccumulator = 0f;
 
+        [Header("Fallback Behavior")]
+        [SerializeField] private bool allowGreedyFallback = true;
+
         public Vector2Int CurrentGridPos { get; private set; }
+
+        public event Action<Vector2Int> GuardMoved;
 
         private GridManager gridManager;
         private TurnManager turnManager;
@@ -37,24 +42,38 @@ namespace RelicHunter.Enemy
 
         public void SetGuardSpeed(float speed)
         {
-            guardSpeed = speed;
+            guardSpeed = Mathf.Max(0f, speed);
             movementAccumulator = 0f;
         }
 
         public void TakeTurn()
         {
-            // Accumulate movement points
+            ResolveSceneReferences();
+
             movementAccumulator += guardSpeed;
 
             // Move tiles equal to accumulated movement
             while (movementAccumulator >= 1f)
             {
-                ExecuteGuardTurnWithBarricadeChecks();
+                bool keepGoing = ExecuteStrategicGuardMove();
                 movementAccumulator -= 1f;
+
+                if (!keepGoing)
+                {
+                    break;
+                }
+
+                if (turnManager != null && turnManager.currentTurn == TurnManager.TurnState.Processing)
+                {
+                    break;
+                }
             }
 
             // Signal end of guard turn
-            EndGuardTurnSafely();
+            if (turnManager != null && turnManager.currentTurn != TurnManager.TurnState.Processing)
+            {
+                EndGuardTurnSafely();
+            }
         }
 
         /// <summary>
@@ -63,21 +82,91 @@ namespace RelicHunter.Enemy
         public void ResetToPosition(Vector2Int newGridPos)
         {
             CurrentGridPos = newGridPos;
+            movementAccumulator = 0f;
             SnapTransformToGrid();
             RegisterGuardPosition();
         }
 
-        private void ExecuteGuardTurnWithBarricadeChecks()
+        private bool ExecuteStrategicGuardMove()
         {
             ResolveSceneReferences();
 
             if (gridManager == null)
             {
                 EndGuardTurnSafely();
-                return;
+                return false;
             }
 
             Vector2Int thiefPos = gridManager.playerPos;
+
+            if (CurrentGridPos == thiefPos)
+            {
+                RegisterGuardPosition();
+                return true;
+            }
+
+            Vector2Int nextStep = DetermineBestGuardMove(thiefPos);
+
+            if (nextStep == CurrentGridPos && allowGreedyFallback)
+            {
+                nextStep = FindGreedyFallbackMove(thiefPos);
+            }
+
+            if (!gridManager.IsTileWalkable(nextStep.x, nextStep.y))
+            {
+                Debug.LogWarning("[GuardController] Blocked an illegal AI move! Guard is holding position.");
+                nextStep = CurrentGridPos;
+            }
+
+            CurrentGridPos = nextStep;
+            SnapTransformToGrid();
+            RegisterGuardPosition();
+            GuardMoved?.Invoke(CurrentGridPos);
+
+            if (turnManager != null)
+            {
+                bool gameEnded = turnManager.CheckWinLossConditions();
+                if (gameEnded) return false;
+            }
+
+            return true;
+        }
+
+        private Vector2Int DetermineBestGuardMove(Vector2Int thiefPos)
+        {
+            if (gridManager == null)
+                return CurrentGridPos;
+
+            int maxDepth = 1;
+            if (GameManager.Instance != null)
+            {
+                maxDepth = Mathf.Max(0, GameManager.Instance.CurrentMinimaxDepth);
+            }
+
+            Vector2Int bestStep = Minimax.GetBestGuardMove(
+                CurrentGridPos,
+                thiefPos,
+                gridManager.exitPos,
+                new HashSet<Vector2Int>(gridManager.permanentWalls),
+                new Dictionary<Vector2Int, int>(gridManager.activeBarricades),
+                gridManager.Width,
+                gridManager.Height,
+                maxDepth,
+                gridManager.barricadeDuration,
+                gridManager.maxBarricadesAllowed
+            );
+
+            if (bestStep == Minimax.TRAPPED)
+                return CurrentGridPos;
+
+            return bestStep;
+        }
+
+        private Vector2Int FindGreedyFallbackMove(Vector2Int thiefPos)
+        {
+            if (gridManager == null)
+                return CurrentGridPos;
+
             Vector2Int bestStep = CurrentGridPos;
 
             int dx = System.Math.Sign(thiefPos.x - CurrentGridPos.x);
@@ -108,6 +197,7 @@ namespace RelicHunter.Enemy
             if (!stepTaken)
             {
                 Vector2Int[] fallbackDirections = { Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right };
+
                 foreach (Vector2Int dir in fallbackDirections)
                 {
                     Vector2Int testStep = CurrentGridPos + dir;
@@ -120,15 +210,7 @@ namespace RelicHunter.Enemy
                 }
             }
 
-            CurrentGridPos = bestStep;
-            SnapTransformToGrid();
-            RegisterGuardPosition();
-
-            if (turnManager != null)
-            {
-                bool gameEnded = turnManager.CheckWinLossConditions();
-                if (gameEnded) return;
-            }
+            return bestStep;
         }
 
         private void SnapTransformToGrid()

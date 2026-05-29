@@ -195,50 +195,6 @@ Transform:
   m_Children: []
   m_Father: {fileID: 1480344122}
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
---- !u!1 &548407133
-GameObject:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  serializedVersion: 6
-  m_Component:
-  - component: {fileID: 548407135}
-  - component: {fileID: 548407134}
-  m_Layer: 0
-  m_Name: AITest_Minimax
-  m_TagString: Untagged
-  m_Icon: {fileID: 0}
-  m_NavMeshLayer: 0
-  m_StaticEditorFlags: 0
-  m_IsActive: 1
---- !u!114 &548407134
-MonoBehaviour:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 548407133}
-  m_Enabled: 1
-  m_EditorHideFlags: 0
-  m_Script: {fileID: 11500000, guid: 599b5067f4e3d434fb283e97ad04d4d9, type: 3}
-  m_Name: 
-  m_EditorClassIdentifier: Assembly-CSharp::TestAI
---- !u!4 &548407135
-Transform:
-  m_ObjectHideFlags: 0
-  m_CorrespondingSourceObject: {fileID: 0}
-  m_PrefabInstance: {fileID: 0}
-  m_PrefabAsset: {fileID: 0}
-  m_GameObject: {fileID: 548407133}
-  serializedVersion: 2
-  m_LocalRotation: {x: 0, y: 0, z: 0, w: 1}
-  m_LocalPosition: {x: 0, y: 0, z: 0}
-  m_LocalScale: {x: 1, y: 1, z: 1}
-  m_ConstrainProportionsScale: 0
-  m_Children: []
-  m_Father: {fileID: 0}
-  m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
 --- !u!1 &921404965
 GameObject:
   m_ObjectHideFlags: 0
@@ -280,6 +236,7 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
+    wallDensity: 0
   - roundName: 
     gridWidth: 0
     gridHeight: 0
@@ -287,6 +244,7 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
+    wallDensity: 0
   - roundName: 
     gridWidth: 0
     gridHeight: 0
@@ -294,6 +252,7 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
+    wallDensity: 0
   currentRoundIndex: 1
   playerWins: 0
   guardWins: 0
@@ -345,6 +304,10 @@ MonoBehaviour:
   gridManager: {fileID: 1480344121}
   turnManager: {fileID: 115898429}
   gridPosition: {x: 0, y: 0}
+  repeatDelay: 0.2
+  barricadeModifierKey: 304
+  barricadeConfirmKey: 32
+  allowDiagonalBarricades: 1
 --- !u!212 &1098068565
 SpriteRenderer:
   serializedVersion: 2
@@ -543,14 +506,17 @@ MonoBehaviour:
   width: 9
   height: 9
   tilePrefab: {fileID: 6243763376934753224, guid: 02f87036fee0ad34ebfb7bcb5f0b9ad4, type: 3}
+  wallPrefab: {fileID: 0}
+  barricadePrefab: {fileID: 1216635608454189344, guid: 3e44757622af06940b9136d2d9783d07, type: 3}
+  exitPrefab: {fileID: 1779527130164335825, guid: 25b5bd2dc47233945aa2028d7cf28654, type: 3}
   gridVisualParent: {fileID: 309917373}
   maxBarricadesAllowed: 3
   barricadeDuration: 4
-  barricadePrefab: {fileID: 1216635608454189344, guid: 3e44757622af06940b9136d2d9783d07, type: 3}
   playerPos: {x: 0, y: 0}
   guardPos: {x: 8, y: 8}
   exitPos: {x: 8, y: 0}
-  exitPrefab: {fileID: 1779527130164335825, guid: 25b5bd2dc47233945aa2028d7cf28654, type: 3}
+  defaultWallDensity: 0.18
+  generationAttempts: 25
 --- !u!4 &1480344122
 Transform:
   m_ObjectHideFlags: 0
@@ -633,5 +599,4 @@ SceneRoots:
   - {fileID: 115898430}
   - {fileID: 1098068566}
   - {fileID: 1480344122}
-  - {fileID: 548407135}
   - {fileID: 1684804703}

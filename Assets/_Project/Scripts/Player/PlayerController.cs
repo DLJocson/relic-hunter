@@ -2,6 +2,7 @@
 // PlayerController.cs — Handles player input and character grid-movement.
 // =============================================================================
 
+using System;
 using UnityEngine;
 using RelicHunter.Core;
 
@@ -19,10 +20,13 @@ namespace RelicHunter.Player
         private Vector2Int lastDirection = Vector2Int.zero;
         private float timeSinceLastMove = 0f;
 
+        public event Action<Vector2Int> PlayerMoved;
+        public event Action<Vector2Int> BarricadePlaced;
+
         private void Start()
         {
-            SnapTransformToGrid();
             ResolveSceneReferences();
+            SnapTransformToGrid();
             RegisterPlayerPosition();
         }
 
@@ -31,22 +35,25 @@ namespace RelicHunter.Player
             if (turnManager == null || turnManager.currentTurn != TurnManager.TurnState.PlayerTurn)
                 return;
 
+            HandleBarricadeInput();
+            HandleMovementInput();
+        }
+
+        private void HandleMovementInput()
+        {
             // Movement Keys - initial input uses GetKeyDown, repeat uses held key + delay
             Vector2Int keyDownDirection = GetKeyDownInput();
             if (keyDownDirection != Vector2Int.zero)
             {
-                // First keypress of this frame - move immediately
                 TryMove(keyDownDirection);
                 lastDirection = keyDownDirection;
                 timeSinceLastMove = 0f;
             }
             else if (lastDirection != Vector2Int.zero)
             {
-                // Check if same direction is still held
                 Vector2Int heldDirection = GetDirectionalInput();
                 if (heldDirection == lastDirection)
                 {
-                    // Same direction still held - repeat after delay
                     timeSinceLastMove += Time.deltaTime;
                     if (timeSinceLastMove >= repeatDelay)
                     {
@@ -56,13 +63,15 @@ namespace RelicHunter.Player
                 }
                 else
                 {
-                    // Direction released or changed
                     lastDirection = Vector2Int.zero;
                     timeSinceLastMove = 0f;
                 }
             }
+        }
 
-            // Barricade Keys
+        private void HandleBarricadeInput()
+        {
+            // Instant barricade placement using Arrow Keys
             if (Input.GetKeyDown(KeyCode.UpArrow)) TryDropBarricade(Vector2Int.up);
             else if (Input.GetKeyDown(KeyCode.DownArrow)) TryDropBarricade(Vector2Int.down);
             else if (Input.GetKeyDown(KeyCode.LeftArrow)) TryDropBarricade(Vector2Int.left);
@@ -71,10 +80,21 @@ namespace RelicHunter.Player
 
         private Vector2Int GetKeyDownInput()
         {
+            // Strictly WASD for movement
             if (Input.GetKeyDown(KeyCode.W)) return Vector2Int.up;
             if (Input.GetKeyDown(KeyCode.S)) return Vector2Int.down;
             if (Input.GetKeyDown(KeyCode.A)) return Vector2Int.left;
             if (Input.GetKeyDown(KeyCode.D)) return Vector2Int.right;
+            return Vector2Int.zero;
+        }
+
+        private Vector2Int GetDirectionalInput()
+        {
+            // Strictly WASD for movement
+            if (Input.GetKey(KeyCode.W)) return Vector2Int.up;
+            if (Input.GetKey(KeyCode.S)) return Vector2Int.down;
+            if (Input.GetKey(KeyCode.A)) return Vector2Int.left;
+            if (Input.GetKey(KeyCode.D)) return Vector2Int.right;
             return Vector2Int.zero;
         }
 
@@ -87,6 +107,8 @@ namespace RelicHunter.Player
                 gridPosition = target;
                 SnapTransformToGrid();
                 RegisterPlayerPosition();
+
+                PlayerMoved?.Invoke(gridPosition);
 
                 Debug.Log($"[PlayerController] Player stepped onto {gridPosition}. Intercepting condition checks.");
 
@@ -113,20 +135,16 @@ namespace RelicHunter.Player
             if (gridManager != null)
             {
                 bool success = gridManager.TryPlaceBarricade(targetPos);
-                if (success && turnManager != null)
+                if (success)
                 {
-                    turnManager.EndPlayerTurn();
+                    BarricadePlaced?.Invoke(targetPos);
+
+                    if (turnManager != null)
+                    {
+                        turnManager.EndPlayerTurn();
+                    }
                 }
             }
-        }
-
-        private Vector2Int GetDirectionalInput()
-        {
-            if (Input.GetKey(KeyCode.W)) return Vector2Int.up;
-            if (Input.GetKey(KeyCode.S)) return Vector2Int.down;
-            if (Input.GetKey(KeyCode.A)) return Vector2Int.left;
-            if (Input.GetKey(KeyCode.D)) return Vector2Int.right;
-            return Vector2Int.zero;
         }
 
         public void SnapTransformToGrid()

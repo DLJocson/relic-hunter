@@ -30,6 +30,7 @@ public class GameManager : MonoBehaviour
         public int barricadeDuration;
         public int maxBarricades;
         public int minimaxDepth;
+        public float wallDensity;
     }
 
     [Header("Scene References")]
@@ -46,7 +47,18 @@ public class GameManager : MonoBehaviour
     [SerializeField] private int playerWins = 0;
     [SerializeField] private int guardWins = 0;
 
+    [Header("Runtime Round Settings")]
+    public int CurrentMinimaxDepth { get; private set; } = 1;
+    public float CurrentGuardSpeed { get; private set; } = 1f;
+    public int CurrentBarricadeDuration { get; private set; } = 4;
+    public int CurrentMaxBarricades { get; private set; } = 3;
+    public float CurrentWallDensity { get; private set; } = 0.18f;
+
     public MatchState CurrentMatchState { get; private set; } = MatchState.NotStarted;
+
+    public event Action<int, RoundDefinition> OnRoundStarted;
+    public event Action<int, bool, int, int> OnRoundCompleted;
+    public event Action<bool, int, int> OnMatchCompleted;
 
     private void Awake()
     {
@@ -55,6 +67,7 @@ public class GameManager : MonoBehaviour
             Destroy(gameObject);
             return;
         }
+
         Instance = this;
         EnsureDefaultRounds();
     }
@@ -62,6 +75,7 @@ public class GameManager : MonoBehaviour
     private void Start()
     {
         ResolveSceneReferences();
+
         if (CurrentMatchState == MatchState.NotStarted)
         {
             StartMatch();
@@ -73,15 +87,36 @@ public class GameManager : MonoBehaviour
         if (rounds == null || rounds.Length < 3)
             rounds = new RoundDefinition[3];
 
-        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1);
-        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2);
-        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3);
+        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1, 0.12f);
+        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2, 0.18f);
+        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3, 0.24f);
     }
 
-    private void SetDefaultRoundIfEmpty(int index, string name, int width, int height, float speed, int duration, int maxB, int depth)
+    private void SetDefaultRoundIfEmpty(
+        int index,
+        string name,
+        int width,
+        int height,
+        float speed,
+        int duration,
+        int maxB,
+        int depth,
+        float wallDensity)
     {
-        if (index < 0 || index >= rounds.Length || !string.IsNullOrWhiteSpace(rounds[index].roundName)) return;
-        rounds[index] = new RoundDefinition { roundName = name, gridWidth = width, gridHeight = height, guardSpeed = speed, barricadeDuration = duration, maxBarricades = maxB, minimaxDepth = depth };
+        if (index < 0 || index >= rounds.Length || !string.IsNullOrWhiteSpace(rounds[index].roundName))
+            return;
+
+        rounds[index] = new RoundDefinition
+        {
+            roundName = name,
+            gridWidth = width,
+            gridHeight = height,
+            guardSpeed = speed,
+            barricadeDuration = duration,
+            maxBarricades = maxB,
+            minimaxDepth = depth,
+            wallDensity = wallDensity
+        };
     }
 
     public void StartMatch()
@@ -95,29 +130,42 @@ public class GameManager : MonoBehaviour
     public void StartRound()
     {
         ResolveSceneReferences();
+
         int index = currentRoundIndex - 1;
-        if (index < 0 || index >= rounds.Length) return;
+        if (index < 0 || index >= rounds.Length)
+            return;
 
         RoundDefinition round = rounds[index];
         CurrentMatchState = MatchState.RoundActive;
 
-        // 1. Reinitialize and rebuild the board dimensions dynamically
+        CurrentGuardSpeed = round.guardSpeed;
+        CurrentBarricadeDuration = round.barricadeDuration;
+        CurrentMaxBarricades = round.maxBarricades;
+        CurrentMinimaxDepth = round.minimaxDepth;
+        CurrentWallDensity = round.wallDensity;
+
         if (gridManager != null)
         {
             gridManager.UpdateGridDimensions(round.gridWidth, round.gridHeight);
             gridManager.ApplyRoundSettings(round.maxBarricades, round.barricadeDuration);
+
+            Vector2Int playerStart = new Vector2Int(0, 0);
+            Vector2Int guardStart = new Vector2Int(round.gridWidth - 1, round.gridHeight - 1);
+            Vector2Int exitTile = new Vector2Int(round.gridWidth - 1, 0);
+
+            int seed = BuildRoundSeed(currentRoundIndex);
+            gridManager.GenerateProceduralWalls(seed, round.wallDensity, playerStart, guardStart, exitTile);
         }
 
-        // 2. Teleport characters based on the new boundaries
         ResetPositionsForNewRound();
 
-        // 3. Set guard speed for this round
         if (guardController != null)
         {
             guardController.SetGuardSpeed(round.guardSpeed);
         }
 
-        // ADDED EDITS: Log details for round start, type, dimension settings, and series scores
+        OnRoundStarted?.Invoke(currentRoundIndex, round);
+
         Debug.Log($"<color=orange><b>===================================================</b></color>");
         Debug.Log($"<color=lime><b>[STARTING {round.roundName.ToUpper()}]</b></color>");
         Debug.Log($"<color=yellow>📐 Grid Dimensions: {round.gridWidth} x {round.gridHeight}</color>");
@@ -130,9 +178,19 @@ public class GameManager : MonoBehaviour
         }
     }
 
+    private int BuildRoundSeed(int roundIndex)
+    {
+        unchecked
+        {
+            int timeSeed = (int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF);
+            return timeSeed ^ (roundIndex * 7919);
+        }
+    }
+
     private void ResetPositionsForNewRound()
     {
-        if (gridManager == null) return;
+        if (gridManager == null)
+            return;
 
         if (playerController != null)
         {
@@ -146,12 +204,15 @@ public class GameManager : MonoBehaviour
         {
             guardController.ResetToPosition(guardStart);
         }
+
         gridManager.guardPos = guardStart;
     }
 
     public void EndRound(bool playerWon)
     {
-        if (CurrentMatchState == MatchState.MatchOver) return;
+        if (CurrentMatchState == MatchState.MatchOver)
+            return;
+
         CurrentMatchState = MatchState.RoundTransition;
 
         int index = currentRoundIndex - 1;
@@ -160,7 +221,8 @@ public class GameManager : MonoBehaviour
         if (playerWon) playerWins++;
         else guardWins++;
 
-        // ADDED EDITS: Cleanly print the concrete winner of this round to the console
+        OnRoundCompleted?.Invoke(currentRoundIndex, playerWon, playerWins, guardWins);
+
         string roundWinner = playerWon ? "👤 PLAYER (THIEF)" : "🤖 GUARD AI";
         string roundColor = playerWon ? "green" : "red";
         Debug.Log($"<color={roundColor}><b>[ROUND COMPLETE]</b> {roundWinner} has won {activeRoundName}!</color>");
@@ -170,16 +232,18 @@ public class GameManager : MonoBehaviour
             CurrentMatchState = MatchState.MatchOver;
 
             if (turnManager != null)
-                turnManager.currentTurn = TurnManager.TurnState.Processing; // Lock turn system permanently
+                turnManager.currentTurn = TurnManager.TurnState.Processing;
 
-            string absoluteWinner = playerWins >= 2 ? "PLAYER (THIEF)" : "GUARD AI";
+            bool playerMatchWinner = playerWins >= 2;
+            string absoluteWinner = playerMatchWinner ? "PLAYER (THIEF)" : "GUARD AI";
 
-            // ADDED EDITS: Enhanced prominence for the final championship message block
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
             Debug.Log($"<color=cyan><b>🏆🏆🏆 [MATCH OVER - FINAL SERIES WINNER] 🏆🏆🏆</b></color>");
             Debug.Log($"<color=cyan><b>👑 Final Winner: {absoluteWinner}</b></color>");
             Debug.Log($"<color=cyan><b>💯 Final Series Score -> Player: {playerWins} | Guard: {guardWins}</b></color>");
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
+
+            OnMatchCompleted?.Invoke(playerMatchWinner, playerWins, guardWins);
             return;
         }
 
