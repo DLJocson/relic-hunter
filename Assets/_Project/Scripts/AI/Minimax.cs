@@ -1,19 +1,6 @@
 // =============================================================================
-// Minimax.cs  —  v5 (Absolute Final Integrated Version)
-// Relic Hunter: The Escaping Thief
-// COSC 304 – Introduction to Artificial Intelligence | AY 2025-2026
-//
-// Implements:  Minimax Search with Alpha-Beta Pruning (Section 3.2.2)
-// Role:        Static utility — call GetBestGuardMove() from GuardController.
-//
-// Final Features Included:
-//   1. Alpha-Beta Pruning: Eliminates branches that cannot affect final decision.
-//   2. Empty-move Safety: Returns a static evaluation if no moves exist.
-//   3. TRAPPED Sentinel: Returns (-1, -1) when Guard has no legal moves.
-//   4. Barricade Limits: Enforces TTLs and max active barricade constraints.
-//   5. Defensive API: Null-safe collections and depth validation.
-//   6. Root Terminal Checks: Exits early if game is already decided.
-//   7. Exit Tile Protection: Prevents Thief from barricading the escape route.
+// Minimax.cs
+// Chooses the Guard's best move using minimax with alpha-beta pruning.
 // =============================================================================
 
 using System.Collections.Generic;
@@ -21,45 +8,41 @@ using UnityEngine;
 
 public static class Minimax
 {
-    // =========================================================================
-    // SENTINELS & CONSTANTS
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // CONSTANTS
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Returned by GetBestGuardMove() when the Guard is completely trapped (no legal moves).
-    /// TurnManager should check: if (result == Minimax.TRAPPED) { skip guard's turn; }
+    /// Returned when the Guard has no legal move.
+    /// The game logic can use this to skip the Guard's turn.
     /// </summary>
     public static readonly Vector2Int TRAPPED = new Vector2Int(-1, -1);
 
-    /// <summary>
-    /// Terminal evaluation scores. Large magnitude ensures terminal states dominate
-    /// non-terminal evaluations in move selection.
-    /// </summary>
+    /// <summary>Score used when the Guard has already won.</summary>
     private const int SCORE_GUARD_WINS = 100_000;
+
+    /// <summary>Score used when the Thief has already won.</summary>
     private const int SCORE_THIEF_WINS = -100_000;
 
     /// <summary>
-    /// Infinity bounds for alpha-beta pruning. Using int.MinValue/2 and int.MaxValue/2
-    /// prevents overflow when comparing scores in recursive calls.
+    /// Very large values used by alpha-beta pruning.
     /// </summary>
     private const int NEG_INF = int.MinValue / 2;
     private const int POS_INF = int.MaxValue / 2;
 
-    // =========================================================================
-    // MOVEMENT DIRECTIONS
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // DIRECTION SETS
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Cardinal directions (up, down, left, right) for Guard movement.
-    /// Guards move in 4-connected grids.
+    /// The Guard can only move up, down, left, or right.
     /// </summary>
     private static readonly Vector2Int[] CardinalDirs = {
         Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right
     };
 
     /// <summary>
-    /// All 8 directions (cardinal + diagonals) for Thief barricade placement.
-    /// Thief can place barricades in adjacent 8-connected neighborhoods.
+    /// The Thief can place barricades in any adjacent tile, including diagonals.
     /// </summary>
     private static readonly Vector2Int[] AllEightDirs = {
         Vector2Int.up,               Vector2Int.down,
@@ -68,17 +51,17 @@ public static class Minimax
         new Vector2Int(-1,  1),      new Vector2Int(-1, -1)
     };
 
-    // =========================================================================
-    // INTERNAL TYPES
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // INTERNAL DATA TYPES
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Classifies Thief actions: moving to an adjacent tile or placing a barricade.
+    /// The Thief can either move or place a barricade.
     /// </summary>
     private enum MoveType { Walk, PlaceBarricade }
 
     /// <summary>
-    /// Represents a Thief action: either a walk to Position or a barricade placement.
+    /// Stores one possible Thief action.
     /// </summary>
     private struct MinimaxMove
     {
@@ -87,8 +70,7 @@ public static class Minimax
     }
 
     /// <summary>
-    /// Immutable snapshot of the game state during search. Includes entity positions,
-    /// static obstacles, active barricades with remaining TTLs, and grid dimensions.
+    /// Represents one snapshot of the game state during search.
     /// </summary>
     private struct GameState
     {
@@ -101,25 +83,14 @@ public static class Minimax
         public int GridHeight;
     }
 
-    // =========================================================================
-    // PUBLIC API
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // PUBLIC ENTRY POINT
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Returns the Guard's best next move via minimax search with alpha-beta pruning.
+    /// Finds the best move for the Guard.
     /// 
-    /// Key Safety Features:
-    ///  - Validates all parameters and substitutes sensible defaults for null collections.
-    ///  - Checks if the game is already terminal (Thief escaped or caught).
-    ///  - Returns TRAPPED (-1, -1) if the Guard has no legal moves.
-    ///
-    /// Parameters:
-    ///  - guardPos, thiefPos, exitPos: Current entity positions.
-    ///  - obstacles, barricadeTTLs: Static and dynamic obstacles; null-safe.
-    ///  - gridWidth, gridHeight: Grid dimensions for bounds checking.
-    ///  - maxDepth: Search tree depth (larger = deeper lookahead, more computation).
-    ///  - barricadeDuration: TTL assigned to each newly placed barricade.
-    ///  - maxBarricades: Maximum concurrent barricades allowed on the board.
+    /// Returns TRAPPED (-1, -1) if the Guard cannot move.
     /// </summary>
     public static Vector2Int GetBestGuardMove(
         Vector2Int guardPos,
@@ -133,14 +104,13 @@ public static class Minimax
         int barricadeDuration,
         int maxBarricades)
     {
-        // Defensive initialization: substitute safe defaults for null inputs.
         obstacles ??= new HashSet<Vector2Int>();
         barricadeTTLs ??= new Dictionary<Vector2Int, int>();
         maxDepth = Mathf.Max(0, maxDepth);
         barricadeDuration = Mathf.Max(0, barricadeDuration);
         maxBarricades = Mathf.Max(0, maxBarricades);
 
-        // Early termination: if the game is already decided, no need to simulate.
+        // Stop early if the game is already over.
         if (guardPos == thiefPos || thiefPos == exitPos)
             return guardPos;
 
@@ -157,18 +127,15 @@ public static class Minimax
 
         List<Vector2Int> guardMoves = GetGuardMoves(root);
 
-        // If Guard is fully trapped, signal the TurnManager to skip the turn.
         if (guardMoves.Count == 0)
             return TRAPPED;
 
-        // Select the move with the highest minimax score after recursion.
         Vector2Int bestMove = guardMoves[0];
         int bestScore = NEG_INF;
 
         foreach (Vector2Int move in guardMoves)
         {
             GameState child = ApplyGuardMove(root, move);
-            // Minimizing layer (Thief's perspective): Thief seeks to minimize Guard's advantage.
             int score = MinimaxSearch(child, maxDepth - 1, isMaximizing: false,
                                       NEG_INF, POS_INF, barricadeDuration, maxBarricades);
 
@@ -182,19 +149,13 @@ public static class Minimax
         return bestMove;
     }
 
-    // =========================================================================
-    // CORE MINIMAX RECURSION WITH ALPHA-BETA PRUNING
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // MINIMAX SEARCH
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Recursive minimax search with alpha-beta pruning.
-    /// 
-    /// Alternates between Guard maximization and Thief minimization layers.
-    /// Alpha-beta pruning skips branches that provably cannot influence the final choice.
-    /// 
-    /// Alpha: Highest score found on the maximizing (Guard) path so far.
-    /// Beta:  Lowest score found on the minimizing (Thief) path so far.
-    /// When alpha >= beta, prune remaining branches (they are irrelevant).
+    /// Looks ahead through future moves and scores each possible outcome.
+    /// The Guard tries to maximize the score, while the Thief tries to lower it.
     /// </summary>
     private static int MinimaxSearch(
         GameState state,
@@ -205,22 +166,17 @@ public static class Minimax
         int barricadeDuration,
         int maxBarricades)
     {
-        // Terminal state checks: game outcome is decided.
         if (state.GuardPos == state.ThiefPos) return SCORE_GUARD_WINS;
         if (state.ThiefPos == state.ExitPos) return SCORE_THIEF_WINS;
         if (depth <= 0) return Evaluate(state);
 
         if (isMaximizing)
         {
-            // ---- Guard's Turn (Maximizing Layer) ----
-            // Guard tries to find the move that maximizes the score.
+            // Guard turn: choose the move with the highest score.
             List<Vector2Int> moves = GetGuardMoves(state);
-
-            // Empty-move safety: if Guard is trapped during search, return static eval.
             if (moves.Count == 0) return Evaluate(state);
 
             int best = NEG_INF;
-
             foreach (Vector2Int move in moves)
             {
                 GameState child = ApplyGuardMove(state, move);
@@ -229,27 +185,18 @@ public static class Minimax
 
                 if (score > best) best = score;
                 if (score > alpha) alpha = score;
-
-                // Prune: if alpha >= beta, remaining siblings cannot improve this branch.
                 if (alpha >= beta) break;
             }
-
             return best;
         }
         else
         {
-            // ---- Thief's Turn (Minimizing Layer) ----
-            // Barricade TTLs tick down at the start of the Thief's turn.
+            // Thief turn: choose the move that gives the Guard the worst result.
             state = TickBarricadeTTLs(state);
-
-            // Thief considers both movement and barricade placement.
             List<MinimaxMove> moves = GetThiefMoves(state, barricadeDuration, maxBarricades);
-
-            // Empty-move safety: if Thief has no moves, return static eval.
             if (moves.Count == 0) return Evaluate(state);
 
             int best = POS_INF;
-
             foreach (MinimaxMove move in moves)
             {
                 GameState child = ApplyThiefMove(state, move, barricadeDuration);
@@ -258,23 +205,19 @@ public static class Minimax
 
                 if (score < best) best = score;
                 if (score < beta) beta = score;
-
-                // Prune: if alpha >= beta, remaining siblings cannot improve this branch.
                 if (alpha >= beta) break;
             }
-
             return best;
         }
     }
 
-    // =========================================================================
-    // HEURISTIC EVALUATION
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // HEURISTIC
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Static evaluation of a non-terminal state: negative Manhattan distance.
-    /// Closer Guard → higher score (Guard advantage). Farther Guard → lower score (Thief advantage).
-    /// Manhattan distance is admissible and consistent for grid-based pursuit.
+    /// Gives a simple score for non-final positions.
+    /// Smaller distance between Guard and Thief is better for the Guard.
     /// </summary>
     private static int Evaluate(GameState state)
     {
@@ -283,13 +226,12 @@ public static class Minimax
         return -manhattan;
     }
 
-    // =========================================================================
-    // MOVE GENERATORS
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // MOVE GENERATION
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Returns all walkable adjacent tiles from the Guard's current position.
-    /// Guard moves are 4-connected (cardinal directions only).
+    /// Finds all legal moves for the Guard.
     /// </summary>
     private static List<Vector2Int> GetGuardMoves(GameState state)
     {
@@ -304,19 +246,14 @@ public static class Minimax
     }
 
     /// <summary>
-    /// Returns all available Thief actions: walking to adjacent tiles or placing barricades.
-    /// 
-    /// Walk moves: Any adjacent walkable tile (4-connected).
-    /// Barricade moves: Any adjacent tile (8-connected) that is unoccupied, not an obstacle,
-    ///   not occupied by Guard/Thief, and not the Exit (protected from barricading).
-    ///   Barricade placement is only offered if there are slots remaining (count < maxBarricades)
-    ///   and barricade duration is positive.
+    /// Finds all legal Thief actions:
+    /// moving to a nearby tile or placing a barricade.
     /// </summary>
     private static List<MinimaxMove> GetThiefMoves(GameState state, int barricadeDuration, int maxBarricades)
     {
         List<MinimaxMove> moves = new List<MinimaxMove>(12);
 
-        // Walk candidates: Thief moves to an adjacent walkable tile.
+        // Thief movement.
         foreach (Vector2Int dir in CardinalDirs)
         {
             Vector2Int tile = state.ThiefPos + dir;
@@ -324,9 +261,8 @@ public static class Minimax
                 moves.Add(new MinimaxMove { Type = MoveType.Walk, Position = tile });
         }
 
-        // Barricade placement candidates: Thief can place a barricade around itself (8-connected).
+        // Thief barricades.
         int currentActiveBarricades = state.BarricadeTTLs != null ? state.BarricadeTTLs.Count : 0;
-
         if (barricadeDuration > 0 && currentActiveBarricades < maxBarricades)
         {
             foreach (Vector2Int dir in AllEightDirs)
@@ -340,13 +276,12 @@ public static class Minimax
         return moves;
     }
 
-    // =========================================================================
-    // MOVE APPLICATION
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // APPLYING MOVES
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Applies a Guard move (position update) to the current state.
-    /// Returns a new immutable state object (no side effects).
+    /// Creates a new state after the Guard moves.
     /// </summary>
     private static GameState ApplyGuardMove(GameState state, Vector2Int newPos)
     {
@@ -363,11 +298,7 @@ public static class Minimax
     }
 
     /// <summary>
-    /// Applies a Thief move (walk or barricade placement) to the current state.
-    /// 
-    /// Walk: Update ThiefPos only.
-    /// Barricade: Add the tile to Obstacles and initialize its TTL in BarricadeTTLs.
-    ///           Both collections are copied to avoid mutation.
+    /// Creates a new state after the Thief either moves or places a barricade.
     /// </summary>
     private static GameState ApplyThiefMove(GameState state, MinimaxMove move, int barricadeDuration)
     {
@@ -386,7 +317,6 @@ public static class Minimax
         }
         else
         {
-            // Barricade placement: add to obstacles and track TTL.
             HashSet<Vector2Int> newObs = new HashSet<Vector2Int>(state.Obstacles) { move.Position };
 
             Dictionary<Vector2Int, int> newTTLs = new Dictionary<Vector2Int, int>(
@@ -408,23 +338,19 @@ public static class Minimax
         }
     }
 
-    // =========================================================================
-    // BARRICADE DECAY SIMULATION
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // BARRICADE TIMER
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Decrements all barricade TTLs at the start of the Thief's turn.
-    /// Barricades with TTL <= 0 are removed from both BarricadeTTLs and Obstacles.
-    /// 
-    /// This models barricade expiration: temporary obstacles decay over time,
-    /// reflecting real-world deterioration or maintenance intervals.
+    /// Decreases the life of each barricade.
+    /// Expired barricades are removed from the board.
     /// </summary>
     private static GameState TickBarricadeTTLs(GameState state)
     {
         if (state.BarricadeTTLs == null || state.BarricadeTTLs.Count == 0)
             return state;
 
-        // Identify barricades that will expire after this tick.
         List<Vector2Int> expired = null;
         foreach (KeyValuePair<Vector2Int, int> entry in state.BarricadeTTLs)
         {
@@ -435,7 +361,6 @@ public static class Minimax
             }
         }
 
-        // Decrement all TTLs and remove expired entries.
         Dictionary<Vector2Int, int> newTTLs = new Dictionary<Vector2Int, int>(state.BarricadeTTLs);
         HashSet<Vector2Int> newObs = null;
 
@@ -446,7 +371,6 @@ public static class Minimax
                 newTTLs.Remove(tile);
         }
 
-        // Remove expired barricades from the obstacle set.
         if (expired != null)
         {
             newObs = new HashSet<Vector2Int>(state.Obstacles);
@@ -466,12 +390,12 @@ public static class Minimax
         };
     }
 
-    // =========================================================================
-    // GRID VALIDATION HELPERS
-    // =========================================================================
+    // ---------------------------------------------------------------------
+    // VALIDATION HELPERS
+    // ---------------------------------------------------------------------
 
     /// <summary>
-    /// Checks if a position is walkable: in bounds and not blocked by a static or dynamic obstacle.
+    /// Checks whether a tile is inside the grid and not blocked.
     /// </summary>
     private static bool IsWalkable(Vector2Int pos, GameState state)
     {
@@ -479,11 +403,7 @@ public static class Minimax
     }
 
     /// <summary>
-    /// Checks if a position is eligible for barricade placement:
-    ///  - In bounds
-    ///  - Not already an obstacle
-    ///  - Not occupied by Guard or Thief
-    ///  - Not the Exit tile (protected from barricading)
+    /// Checks whether the Thief can place a barricade on a tile.
     /// </summary>
     private static bool IsEligibleBarricadeTile(Vector2Int pos, GameState state)
     {
@@ -495,7 +415,7 @@ public static class Minimax
     }
 
     /// <summary>
-    /// Checks if a position is within the grid boundaries [0, width) × [0, height).
+    /// Checks whether a position is inside the grid.
     /// </summary>
     private static bool IsInBounds(Vector2Int pos, GameState state)
     {
