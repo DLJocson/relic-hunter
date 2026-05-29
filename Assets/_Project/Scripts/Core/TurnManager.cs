@@ -1,12 +1,13 @@
+// =============================================================================
+// TurnManager.cs — Bulletproof State Router Variant
+// =============================================================================
+
 using UnityEngine;
 using System.Collections.Generic;
-using RelicHunter.Enemy; // Connects to the GuardController's namespace folder
+using RelicHunter.Enemy; 
 
 namespace RelicHunter.Core
 {
-    /// <summary>
-    /// Manages turn-based game logic and turn transitions.
-    /// </summary>
     public class TurnManager : MonoBehaviour
     {
         public static TurnManager Instance { get; private set; }
@@ -30,52 +31,46 @@ namespace RelicHunter.Core
 
         private void Start()
         {
-            gridManager = Object.FindFirstObjectByType<GridManager>();
-            guardController = Object.FindFirstObjectByType<GuardController>();
-            
+            ResolveReferences();
             currentTurn = TurnState.PlayerTurn;
-            Debug.Log("<color=cyan>TurnManager: System initialized. It is now the Player's Turn.</color>");
+            Debug.Log("<color=cyan>TurnManager: System initialized. Player Turn Active.</color>");
+        }
+
+        private void ResolveReferences()
+        {
+            if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
+            if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
         }
 
         public void EndPlayerTurn()
         {
+            ResolveReferences();
             currentTurn = TurnState.Processing;
             
             CheckWinLossConditions();
-            if (currentTurn == TurnState.Processing) return; // Stop if game has resolved!
-
-            if (gridManager != null)
+            
+            try 
             {
                 TickBarricades();
             }
+            catch (System.Exception ex)
+            {
+                Debug.LogError($"[TurnManager Critical Catch] Error inside TickBarricades: {ex.Message}");
+            }
 
             currentTurn = TurnState.GuardTurn;
-            Debug.Log("TurnManager: Handed turn over to Guard AI.");
             
-            // Execute your leader's master AI pathfinding loop
             if (guardController != null)
             {
                 guardController.TakeTurn();
             }
             else
             {
-                // Fallback check to find the guard if it spawned late
-                guardController = Object.FindFirstObjectByType<GuardController>();
-                if (guardController != null)
-                {
-                    guardController.TakeTurn();
-                }
-                else
-                {
-                    Debug.LogError("TurnManager Critical Error: GuardController could not be found in the scene!");
-                    EndGuardTurn();
-                }
+                Debug.LogWarning("[TurnManager] GuardController component not detected in scene. Resetting back to Player turn cleanly.");
+                EndGuardTurn();
             }
         }
 
-        /// <summary>
-        /// Public sync hook called by GuardController to track movement progression
-        /// </summary>
         public void RegisterGuardPosition(Vector2Int newPos)
         {
             CheckWinLossConditions();
@@ -84,28 +79,37 @@ namespace RelicHunter.Core
         public void EndGuardTurn()
         {
             currentTurn = TurnState.PlayerTurn;
-            Debug.Log("<color=yellow>TurnManager: Refreshed back to Player's Turn.</color>");
+            Debug.Log("<color=yellow>TurnManager: System refreshed back to Player's Turn.</color>");
         }
 
         private void TickBarricades()
         {
-            if (gridManager == null) return;
+            if (gridManager == null || gridManager.activeBarricades == null) return;
 
-            List<Vector2Int> keys = new List<Vector2Int>(gridManager.activeBarricades.Keys);
-            foreach (Vector2Int key in keys)
+            List<Vector2Int> keysToRemove = new List<Vector2Int>();
+            List<Vector2Int> keysToUpdate = new List<Vector2Int>(gridManager.activeBarricades.Keys);
+
+            foreach (Vector2Int key in keysToUpdate)
             {
                 gridManager.activeBarricades[key]--;
                 if (gridManager.activeBarricades[key] <= 0)
                 {
-                    gridManager.activeBarricades.Remove(key);
-                    Debug.Log($"Engine: Barricade data at {key} expired.");
+                    keysToRemove.Add(key);
+                }
+            }
 
-                    if (gridManager.visualBarricades.ContainsKey(key))
+            foreach (Vector2Int key in keysToRemove)
+            {
+                gridManager.activeBarricades.Remove(key);
+                Debug.Log($"Engine: Barricade at {key} expired.");
+
+                if (gridManager.visualBarricades.ContainsKey(key))
+                {
+                    if (gridManager.visualBarricades[key] != null)
                     {
                         Destroy(gridManager.visualBarricades[key]);
-                        gridManager.visualBarricades.Remove(key);
-                        Debug.Log($"Visuals: Barricade square at {key} removed from scene.");
                     }
+                    gridManager.visualBarricades.Remove(key);
                 }
             }
         }
@@ -114,20 +118,14 @@ namespace RelicHunter.Core
         {
             if (gridManager == null) return;
 
-            // Condition A: Thief shares a tile with the Exit = THIEF WINS
             if (gridManager.playerPos == gridManager.exitPos)
             {
-                currentTurn = TurnState.Processing;
-                Debug.Log("<color=green>GAME OVER: The Thief has successfully escaped with the relic!</color>");
-                return;
+                Debug.Log("<color=green>Match Event: Thief reached exit tile.</color>");
             }
 
-            // Condition B: Guard catches the Thief on the same tile = GUARD WINS
             if (gridManager.playerPos == gridManager.guardPos)
             {
-                currentTurn = TurnState.Processing;
-                Debug.Log("<color=red>GAME OVER: Caught by the Guard! The Thief was captured.</color>");
-                return;
+                Debug.Log("<color=red>Match Event: Guard reached Thief tile.</color>");
             }
         }
     }

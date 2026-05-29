@@ -1,11 +1,12 @@
+// =============================================================================
+// GridManager.cs — Crash-Resistant Grid Variant
+// =============================================================================
+
 using UnityEngine;
 using System.Collections.Generic;
 
 namespace RelicHunter.Core
 {
-    /// <summary>
-    /// Manages the game grid structure and grid-based operations.
-    /// </summary>
     public class GridManager : MonoBehaviour
     {
         public static GridManager Instance { get; private set; }
@@ -14,23 +15,20 @@ namespace RelicHunter.Core
         [SerializeField] private int width = 9;
         [SerializeField] private int height = 9;
 
-        // Properties that GuardController uses to check grid size
         public int Width => width;
         public int Height => height;
 
         public GameObject tilePrefab;
         public Transform gridVisualParent;
-        private bool[,] walls;
-        private GameObject[,] tiles;
         
         public HashSet<Vector2Int> permanentWalls = new HashSet<Vector2Int>();
         public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
+        public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
         
         [Header("Rules & Limits")]
         public int maxBarricadesAllowed = 3; 
         public int barricadeDuration = 4;    
         public GameObject barricadePrefab;
-        public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
         
         [Header("Runtime Tracker Positions")]
         public Vector2Int playerPos = new Vector2Int(0, 0);
@@ -44,9 +42,6 @@ namespace RelicHunter.Core
             if (Instance == null) Instance = this;
             else Destroy(gameObject);
 
-            walls = new bool[width, height];
-            tiles = new GameObject[width, height];
-            
             Debug.Log("GridManager initialized");
             SpawnGrid();
             SpawnExitVisual();
@@ -55,12 +50,12 @@ namespace RelicHunter.Core
 
         private void SpawnGrid()
         {
+            if (tilePrefab == null) return;
             for (int x = 0; x < width; x++)
             {
                 for (int y = 0; y < height; y++)
                 {
-                    GameObject tileObj = Instantiate(tilePrefab, new Vector3(x, y, 0), Quaternion.identity, gridVisualParent);
-                    tiles[x, y] = tileObj;
+                    Instantiate(tilePrefab, new Vector3(x, y, 0), Quaternion.identity, gridVisualParent);
                 }
             }
             Debug.Log("Grid spawned successfully.");
@@ -79,9 +74,6 @@ namespace RelicHunter.Core
             mainCam.orthographicSize = (totalMaxDimension / 2f) + 1f;
         }
 
-        /// <summary>
-        /// Public method used by GuardController to register its current position.
-        /// </summary>
         public void SetGuardPosition(Vector2Int newPos)
         {
             guardPos = newPos;
@@ -106,6 +98,8 @@ namespace RelicHunter.Core
                 Debug.Log("Barricade placement denied: Tile is occupied!");
                 return false;
             }
+
+            if (activeBarricades.ContainsKey(position)) return false;
 
             activeBarricades.Add(position, barricadeDuration);
             Debug.Log($"Engine: Barricade placed at {position} for {barricadeDuration} turns.");
@@ -132,12 +126,16 @@ namespace RelicHunter.Core
 
         public bool IsTileWalkable(int x, int y)
         {
-            Vector2Int target = new Vector2Int(x, y);
             if (x < 0 || x >= width || y < 0 || y >= height) return false;
+            
+            Vector2Int target = new Vector2Int(x, y);
             if (permanentWalls.Contains(target)) return false;
             if (activeBarricades.ContainsKey(target)) return false;
 
             return true;
         }
+
+        public void ClearAllBarricades() { activeBarricades.Clear(); visualBarricades.Clear(); }
+        public void ApplyRoundSettings(int maxB, int duration) { maxBarricadesAllowed = maxB; barricadeDuration = duration; }
     }
 }
