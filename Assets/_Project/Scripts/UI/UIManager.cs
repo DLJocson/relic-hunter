@@ -67,11 +67,26 @@ namespace RelicHunter.UI
             }
         }
 
+        public void DisplayRoundWinner(bool playerWonRound, string roundName)
+        {
+            if (turnText != null)
+            {
+                if (playerWonRound)
+                {
+                    turnText.text = $"<color=#00FF99><b>ROUND COMPLETE</b></color>\n<size=24><color=white>Thief successfully escaped {roundName}!</color></size>";
+                }
+                else
+                {
+                    turnText.text = $"<color=#FF3366><b>ROUND FAILED</b></color>\n<size=24><color=white>The Guard captured you in {roundName}!</color></size>";
+                }
+            }
+        }
+
         public void DisplayMatchWinner(string absoluteWinner)
         {
             if (turnText != null)
             {
-                turnText.text = $"<color=cyan><b>MATCH OVER\nWINNER: {absoluteWinner}</b></color>";
+                turnText.text = $"<color=#00FFFF><b>MATCH OVER — WINNER: {absoluteWinner.ToUpper()}</b></color>";
             }
         }
     }

@@ -262,6 +262,12 @@ public class GameManager : MonoBehaviour
         if (playerWon) playerWins++;
         else guardWins++;
 
+        if (RelicHunter.UI.UIManager.Instance != null)
+        {
+            RelicHunter.UI.UIManager.Instance.DisplayRoundWinner(playerWon, activeRoundName);
+            RelicHunter.UI.UIManager.Instance.UpdateScoreboard(playerWins, guardWins); // Updates numbers instantly
+        }
+
         OnRoundCompleted?.Invoke(currentRoundIndex, playerWon, playerWins, guardWins);
 
         string roundWinner = playerWon ? "PLAYER (THIEF)" : "GUARD AI";
