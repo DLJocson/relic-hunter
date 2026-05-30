@@ -1,255 +1,238 @@
+// =============================================================================
+// AStar.cs — Unified structural routing & path safety evaluation component
+// =============================================================================
+
 using System;
 using System.Collections.Generic;
-using RelicHunter.Core;
 using UnityEngine;
+using RelicHunter.Core;
+using RelicHunter.AI;
 
-namespace RelicHunter.AI
+public static class AStar
 {
+    private static readonly Vector2Int[] CardinalDirs = {
+        Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right
+    };
+
     /// <summary>
-    /// Allocation-optimized, production-grade A* pathfinding system for grid-based traversal.
-    /// Operates independently of monolithic engines via static data-driven injection.
+    /// Computes an optimal, complete point-to-point sequence of grid positions.
+    /// Safely wraps custom GridManager traversal constraints and handles exceptional Guard mechanics (Leaping).
     /// </summary>
-    public static class AStar
+    public static List<Vector2Int> FindPath(
+        GridManager grid,
+        Vector2Int startPos,
+        Vector2Int targetPos,
+        bool isGuard,
+        HashSet<Vector2Int> extraBlocked)
     {
-        private static readonly Vector2Int[] CardinalDirections = new Vector2Int[4]
+        List<Vector2Int> computedPath = new List<Vector2Int>();
+
+        if (grid == null) return computedPath;
+        if (startPos == targetPos)
         {
-            Vector2Int.up,
-            Vector2Int.down,
-            Vector2Int.left,
-            Vector2Int.right
+            computedPath.Add(startPos);
+            return computedPath;
+        }
+
+        int width = grid.Width;
+        int height = grid.Height;
+
+        // Bounded capacity allocation matrix to avoid garbage collection allocation cycles
+        int estimatedCapacity = Mathf.Min(width * height, 256);
+        SimplePriorityQueue<PathNode> openSet = new SimplePriorityQueue<PathNode>(estimatedCapacity);
+        Dictionary<Vector2Int, PathNode> allNodes = new Dictionary<Vector2Int, PathNode>(estimatedCapacity);
+
+        PathNode startNode = new PathNode(startPos)
+        {
+            GScore = 0,
+            HScore = Heuristics.GetManhattanDistance(startPos, targetPos)
         };
 
-        /// <summary>
-        /// Computes an optimal point-to-point sequence using the heuristic state space.
-        /// </summary>
-        /// <param name="grid">The engine grid manager abstraction context.</param>
-        /// <param name="start">Origin point.</param>
-        /// <param name="goal">Target node.</param>
-        /// <param name="isGuard">Determines if agent-specific traversal constraints apply.</param>
-        /// <param name="extraBlocked">An optional localized runtime blacklist containing temporary hazards.</param>
-        /// <returns>A clean sequence mapping path progression. Returns an empty list if a solution does not exist.</returns>
-        public static List<Vector2Int> FindPath(
-            GridManager grid,
-            Vector2Int start,
-            Vector2Int goal,
-            bool isGuard,
-            HashSet<Vector2Int> extraBlocked = null)
+        allNodes[startPos] = startNode;
+        openSet.Enqueue(startNode);
+
+        bool destinationReached = false;
+        List<Vector2Int> adjacentBuffer = new List<Vector2Int>(4);
+
+        while (openSet.Count > 0)
         {
-            List<Vector2Int> operationalPath = new List<Vector2Int>();
+            PathNode current = openSet.Dequeue();
 
-            if (grid == null)
+            if (current.Position == targetPos)
             {
-                return operationalPath;
+                destinationReached = true;
+                break;
             }
 
-            if (start == goal)
+            // Extract dynamic context neighbors using existing structural layout paths
+            GetMovementNeighbors(grid, current.Position, isGuard, extraBlocked, adjacentBuffer);
+
+            for (int i = 0; i < adjacentBuffer.Count; i++)
             {
-                operationalPath.Add(start);
-                return operationalPath;
-            }
+                Vector2Int neighborPos = adjacentBuffer[i];
+                
+                // Calculate actual path cost step changes (Leaps count as double steps but evaluate normally)
+                int edgeCost = Heuristics.GetManhattanDistance(current.Position, neighborPos);
+                int tentativeGScore = current.GScore + edgeCost;
 
-            // Allocation-mitigated structural collections
-            PriorityQueue openSet = new PriorityQueue(grid.Width * grid.Height);
-            HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
-            Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>();
-            Dictionary<Vector2Int, int> gScore = new Dictionary<Vector2Int, int>();
-
-            gScore[start] = 0;
-            openSet.Enqueue(start, Heuristic(start, goal));
-
-            while (openSet.Count > 0)
-            {
-                Vector2Int current = openSet.Dequeue();
-
-                if (current == goal)
+                if (!allNodes.TryGetValue(neighborPos, out PathNode neighborNode))
                 {
-                    return ReconstructPath(cameFrom, current);
+                    neighborNode = new PathNode(neighborPos);
+                    allNodes[neighborPos] = neighborNode;
                 }
 
-                closedSet.Add(current);
-
-                // Inline neighbor evaluation to satisfy single-context stability
-                for (int i = 0; i < CardinalDirections.Length; i++)
+                if (tentativeGScore < neighborNode.GScore)
                 {
-                    Vector2Int neighbor = current + CardinalDirections[i];
+                    neighborNode.Parent = current;
+                    neighborNode.GScore = tentativeGScore;
+                    neighborNode.HScore = Heuristics.GetManhattanDistance(neighborPos, targetPos);
 
-                    if (closedSet.Contains(neighbor))
+                    if (!openSet.Contains(neighborNode))
                     {
-                        continue;
-                    }
-
-                    if (extraBlocked != null && extraBlocked.Contains(neighbor))
-                    {
-                        continue;
-                    }
-
-                    // Strict topology parsing matching underlying engine hooks
-                    if (!grid.CanEnterCell(current, neighbor, isGuard))
-                    {
-                        continue;
-                    }
-
-                    int tentativeGScore = gScore[current] + 1;
-
-                    if (gScore.TryGetValue(neighbor, out int currentGScore) && tentativeGScore >= currentGScore)
-                    {
-                        continue;
-                    }
-
-                    cameFrom[neighbor] = current;
-                    gScore[neighbor] = tentativeGScore;
-                    int fScore = tentativeGScore + Heuristic(neighbor, goal);
-
-                    if (!openSet.Contains(neighbor))
-                    {
-                        openSet.Enqueue(neighbor, fScore);
+                        openSet.Enqueue(neighborNode);
                     }
                 }
             }
-
-            return operationalPath;
         }
 
-        /// <summary>
-        /// Computes whether a valid route is available within the current matrix.
-        /// </summary>
-        public static bool PathExists(
-            GridManager grid,
-            Vector2Int start,
-            Vector2Int goal,
-            bool isGuard,
-            HashSet<Vector2Int> extraBlocked = null)
+        if (destinationReached)
         {
-            List<Vector2Int> evaluatedRoute = FindPath(grid, start, goal, isGuard, extraBlocked);
-            return evaluatedRoute != null && evaluatedRoute.Count > 0;
+            // Unwind parent nodes backwards into an ordered sequence
+            PathNode trace = allNodes[targetPos];
+            while (trace != null)
+            {
+                computedPath.Add(trace.Position);
+                trace = trace.Parent;
+            }
+            computedPath.Reverse();
         }
 
-        /// <summary>
-        /// Manhattan metric representing the grid topology heuristic formula f(n) = g(n) + h(n).
-        /// </summary>
-        private static int Heuristic(Vector2Int current, Vector2Int destination)
+        return computedPath;
+    }
+
+    /// <summary>
+    /// Interface compliance fallback for GridManager path presence analysis calls.
+    /// </summary>
+    public static bool PathExists(
+        GridManager grid,
+        Vector2Int startPos,
+        Vector2Int targetPos,
+        bool isGuard,
+        HashSet<Vector2Int> extraBlocked)
+    {
+        List<Vector2Int> path = FindPath(grid, startPos, targetPos, isGuard, extraBlocked);
+        return path != null && path.Count > 0;
+    }
+
+    /// <summary>
+    /// Intercepts valid step configurations by combining regular card paths with custom Guard jumping matrices.
+    /// </summary>
+    private static void GetMovementNeighbors(
+        GridManager grid,
+        Vector2Int from,
+        bool isGuard,
+        HashSet<Vector2Int> extraBlocked,
+        List<Vector2Int> neighbors)
+    {
+        neighbors.Clear();
+
+        for (int i = 0; i < CardinalDirs.Length; i++)
         {
-            return Mathf.Abs(current.x - destination.x) + Mathf.Abs(current.y - destination.y);
+            Vector2Int dir = CardinalDirs[i];
+            Vector2Int adjacent = from + dir;
+
+            // Handle special Guard Leap actions over exit locations
+            if (isGuard && adjacent == grid.exitPos)
+            {
+                Vector2Int jumpTo = from + dir * 2;
+                if ((extraBlocked == null || !extraBlocked.Contains(jumpTo)) && grid.CanGuardLeapTo(from, jumpTo))
+                {
+                    neighbors.Add(jumpTo);
+                }
+                continue;
+            }
+
+            // Normal step evaluation logic
+            if (extraBlocked != null && extraBlocked.Contains(adjacent))
+                continue;
+
+            if (grid.CanEnterCell(from, adjacent, isGuard))
+            {
+                neighbors.Add(adjacent);
+            }
+        }
+    }
+
+    // =========================================================================
+    // HIGH-PERFORMANCE PRIORITY QUEUE (GC-OPTIMIZED MIN-HEAP)
+    // =========================================================================
+    private sealed class SimplePriorityQueue<T> where T : IComparable<T>
+    {
+        private T[] _items;
+        private int _size;
+        private readonly HashSet<T> _set;
+
+        public int Count => _size;
+
+        public SimplePriorityQueue(int capacity)
+        {
+            _items = new T[capacity];
+            _size = 0;
+            _set = new HashSet<T>();
         }
 
-        private static List<Vector2Int> ReconstructPath(Dictionary<Vector2Int, Vector2Int> cameFrom, Vector2Int current)
+        public bool Contains(T item) => _set.Contains(item);
+
+        public void Enqueue(T item)
         {
-            List<Vector2Int> structuralPath = new List<Vector2Int> { current };
-
-            while (cameFrom.TryGetValue(current, out Vector2Int sourceNode))
+            if (_size == _items.Length)
             {
-                current = sourceNode;
-                structuralPath.Add(current);
+                Array.Resize(ref _items, _items.Length * 2);
             }
-
-            structuralPath.Reverse();
-            return structuralPath;
+            _items[_size] = item;
+            _set.Add(item);
+            BubbleUp(_size);
+            _size++;
         }
 
-        /// <summary>
-        /// Highly deterministic inline PriorityQueue implementation structured explicitly 
-        /// to eliminate dynamic memory allocations during path exploration loops.
-        /// </summary>
-        private sealed class PriorityQueue
+        public T Dequeue()
         {
-            private struct QueueElement
+            if (_size == 0) throw new InvalidOperationException("Queue is empty.");
+            T head = _items[0];
+            _size--;
+            if (_size > 0)
             {
-                public Vector2Int Node;
-                public int Priority;
+                _items[0] = _items[_size];
+                TrickleDown(0);
             }
+            _items[_size] = default;
+            _set.Remove(head);
+            return head;
+        }
 
-            private readonly QueueElement[] heapArray;
-            private readonly HashSet<Vector2Int> trackingSet;
-            private int elementCount;
-
-            public int Count => elementCount;
-
-            public PriorityQueue(int capacity)
+        private void BubbleUp(int index)
+        {
+            while (index > 0)
             {
-                heapArray = new QueueElement[capacity];
-                trackingSet = new HashSet<Vector2Int>();
-                elementCount = 0;
+                int parent = (index - 1) >> 1;
+                if (_items[index].CompareTo(_items[parent]) >= 0) break;
+                T swap = _items[index]; _items[index] = _items[parent]; _items[parent] = swap;
+                index = parent;
             }
+        }
 
-            public bool Contains(Vector2Int node)
+        private void TrickleDown(int index)
+        {
+            int middle = _size >> 1;
+            while (index < middle)
             {
-                return trackingSet.Contains(node);
-            }
-
-            public void Enqueue(Vector2Int node, int priority)
-            {
-                trackingSet.Add(node);
-                QueueElement newElement = new QueueElement { Node = node, Priority = priority };
-                heapArray[elementCount] = newElement;
-                SiftUp(elementCount);
-                elementCount++;
-            }
-
-            public Vector2Int Dequeue()
-            {
-                if (elementCount == 0)
-                {
-                    throw new InvalidOperationException("Queue underflow exception during path traversal serialization.");
-                }
-
-                Vector2Int trackedNode = heapArray[0].Node;
-                trackingSet.Remove(trackedNode);
-
-                elementCount--;
-                heapArray[0] = heapArray[elementCount];
-                SiftDown(0);
-
-                return trackedNode;
-            }
-
-            private void SiftUp(int elementIndex)
-            {
-                while (elementIndex > 0)
-                {
-                    int parentIndex = (elementIndex - 1) / 2;
-                    if (heapArray[elementIndex].Priority >= heapArray[parentIndex].Priority)
-                    {
-                        break;
-                    }
-
-                    SwapElements(elementIndex, parentIndex);
-                    elementIndex = parentIndex;
-                }
-            }
-
-            private void SiftDown(int elementIndex)
-            {
-                while (true)
-                {
-                    int leftChildIndex = (elementIndex * 2) + 1;
-                    int rightChildIndex = (elementIndex * 2) + 2;
-                    int smallestValueIndex = elementIndex;
-
-                    if (leftChildIndex < elementCount && heapArray[leftChildIndex].Priority < heapArray[smallestValueIndex].Priority)
-                    {
-                        smallestValueIndex = leftChildIndex;
-                    }
-
-                    if (rightChildIndex < elementCount && heapArray[rightChildIndex].Priority < heapArray[smallestValueIndex].Priority)
-                    {
-                        smallestValueIndex = rightChildIndex;
-                    }
-
-                    if (smallestValueIndex == elementIndex)
-                    {
-                        break;
-                    }
-
-                    SwapElements(elementIndex, smallestValueIndex);
-                    elementIndex = smallestValueIndex;
-                }
-            }
-
-            private void SwapElements(int sourceIndex, int targetIndex)
-            {
-                QueueElement temporaryElement = heapArray[sourceIndex];
-                heapArray[sourceIndex] = heapArray[targetIndex];
-                heapArray[targetIndex] = temporaryElement;
+                int left = (index << 1) + 1;
+                int right = left + 1;
+                int best = left;
+                if (right < _size && _items[right].CompareTo(_items[left]) < 0) best = right;
+                if (_items[index].CompareTo(_items[best]) <= 0) break;
+                T swap = _items[index]; _items[index] = _items[best]; _items[best] = swap;
+                index = best;
             }
         }
     }
