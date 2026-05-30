@@ -376,14 +376,6 @@ public static class Minimax
         return !wallOnPath;
     }
 
-    private static bool IsWalkable(Vector2Int pos, GameState state)
-    {
-        bool isWall = state.Obstacles != null && state.Obstacles.Contains(pos);
-        bool isBarricade = state.BarricadeTTLs != null && state.BarricadeTTLs.ContainsKey(pos);
-
-        return IsInBounds(pos, state) && !isWall && !isBarricade;
-    }
-
     private static bool IsEligibleBarricadeTile(Vector2Int pos, GameState state)
     {
         bool isWall = state.Obstacles != null && state.Obstacles.Contains(pos);

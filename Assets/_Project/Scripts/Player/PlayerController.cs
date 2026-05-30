@@ -2,7 +2,6 @@
 // PlayerController.cs — Handles player input and character grid-movement.
 // =============================================================================
 
-using System;
 using UnityEngine;
 using RelicHunter.Core;
 
@@ -22,9 +21,6 @@ namespace RelicHunter.Player
 
         private MazeGridBridge mazeBridge;
         private RoundFeedbackController roundFeedback;
-
-        public event Action<Vector2Int> PlayerMoved;
-        public event Action<Vector2Int> BarricadePlaced;
 
         private void Start()
         {
@@ -108,8 +104,6 @@ namespace RelicHunter.Player
             SnapTransformToGrid();
             RegisterPlayerPosition();
 
-            PlayerMoved?.Invoke(gridPosition);
-
             if (turnManager != null)
             {
                 bool gameHasEnded = turnManager.CheckWinLossConditions();
@@ -124,7 +118,7 @@ namespace RelicHunter.Player
         {
             if (gridManager == null) return false;
 
-            if (mazeBridge != null && gridManager.UseMazeVisuals)
+            if (mazeBridge != null)
             {
                 if (gridManager.activeBarricades.ContainsKey(to)) return false;
                 return mazeBridge.CanMoveBetween(from, to);
@@ -142,8 +136,6 @@ namespace RelicHunter.Player
                 bool success = gridManager.TryPlaceBarricade(targetPos, out bool wouldTrapPlayer);
                 if (success)
                 {
-                    BarricadePlaced?.Invoke(targetPos);
-
                     if (turnManager != null)
                         turnManager.EndPlayerTurn();
                 }
@@ -156,7 +148,7 @@ namespace RelicHunter.Player
 
         public void SnapTransformToGrid()
         {
-            if (mazeBridge != null && gridManager != null && gridManager.UseMazeVisuals)
+            if (mazeBridge != null)
                 transform.position = mazeBridge.GridToWorld(gridPosition);
             else if (gridManager != null)
                 transform.position = gridManager.GetWorldPositionForCell(gridPosition);

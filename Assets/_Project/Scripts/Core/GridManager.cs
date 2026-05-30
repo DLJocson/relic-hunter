@@ -1,8 +1,7 @@
 // =============================================================================
-// GridManager.cs — Handles playing ground
+// GridManager.cs — Grid logic and barricades (procedural maze visuals via MazeGridBridge).
 // =============================================================================
 
-using System;
 using System.Collections.Generic;
 using RelicHunter.AI;
 using UnityEngine;
@@ -21,17 +20,13 @@ namespace RelicHunter.Core
         public int Height => height;
 
         [Header("Visual Prefabs")]
-        public GameObject tilePrefab;
-        public GameObject barricadePrefab;
         [SerializeField] private GameObject mazeBarricadePrefab;
         public GameObject exitPrefab;
         public Transform gridVisualParent;
 
         [Header("Maze Integration")]
-        [SerializeField] private bool useMazeVisuals = true;
         [SerializeField] private MazeGridBridge mazeBridge;
 
-        public HashSet<Vector2Int> permanentWalls = new HashSet<Vector2Int>();
         public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
         public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
 
@@ -44,8 +39,6 @@ namespace RelicHunter.Core
         public Vector2Int guardPos = new Vector2Int(8, 8);
         public Vector2Int exitPos = new Vector2Int(8, 0);
 
-        public bool UseMazeVisuals => useMazeVisuals;
-
         private void Awake()
         {
             if (Instance == null) Instance = this;
@@ -56,15 +49,6 @@ namespace RelicHunter.Core
             }
 
             ResolveMazeBridge();
-
-            if (!useMazeVisuals)
-            {
-                SpawnGrid();
-                SpawnExitVisual();
-                AutoCenterCamera();
-            }
-
-            Debug.Log("GridManager initialized");
         }
 
         private void ResolveMazeBridge()
@@ -77,15 +61,7 @@ namespace RelicHunter.Core
         {
             width = newWidth;
             height = newHeight;
-
             ClearPhysicalGridVisuals();
-
-            if (!useMazeVisuals)
-            {
-                SpawnGrid();
-                SpawnExitVisual();
-                AutoCenterCamera();
-            }
         }
 
         private void ClearPhysicalGridVisuals()
@@ -100,38 +76,6 @@ namespace RelicHunter.Core
                         Destroy(child.gameObject);
                 }
             }
-
-            permanentWalls.Clear();
-        }
-
-        private void SpawnGrid()
-        {
-            if (tilePrefab == null) return;
-
-            for (int x = 0; x < width; x++)
-            {
-                for (int y = 0; y < height; y++)
-                {
-                    Instantiate(tilePrefab, new Vector3(x, y, 0), Quaternion.identity, gridVisualParent);
-                }
-            }
-
-            Debug.Log($"Grid spawned successfully at size: {width}x{height}");
-        }
-
-        private void AutoCenterCamera()
-        {
-            if (useMazeVisuals) return;
-
-            Camera mainCam = Camera.main;
-            if (mainCam == null) return;
-
-            float centerX = (width - 1) / 2f;
-            float centerY = (height - 1) / 2f;
-
-            mainCam.transform.position = new Vector3(centerX, centerY, -10f);
-            float totalMaxDimension = Mathf.Max(width, height);
-            mainCam.orthographicSize = (totalMaxDimension / 2f) + 1f;
         }
 
         public void SetGuardPosition(Vector2Int newPos)
@@ -145,11 +89,6 @@ namespace RelicHunter.Core
             barricadeDuration = duration;
         }
 
-        public void GenerateProceduralWalls(int seed, float wallDensity, Vector2Int startTile, Vector2Int guardTile, Vector2Int exitTile)
-        {
-            permanentWalls.Clear();
-        }
-
         public bool CanEnterCell(Vector2Int from, Vector2Int to, bool isGuard = false)
         {
             if (to.x < 0 || to.x >= width || to.y < 0 || to.y >= height) return false;
@@ -158,18 +97,13 @@ namespace RelicHunter.Core
 
             ResolveMazeBridge();
 
-            if (useMazeVisuals)
+            if (mazeBridge == null)
             {
-                if (mazeBridge == null)
-                {
-                    Debug.LogError("[GridManager] useMazeVisuals is enabled but MazeGridBridge is missing.");
-                    return false;
-                }
-                return mazeBridge.CanMoveBetween(from, to);
+                Debug.LogError("[GridManager] MazeGridBridge is missing.");
+                return false;
             }
 
-            if (permanentWalls.Contains(to)) return false;
-            return true;
+            return mazeBridge.CanMoveBetween(from, to);
         }
 
         /// <summary>
@@ -273,9 +207,6 @@ namespace RelicHunter.Core
             return true;
         }
 
-        /// <summary>
-        /// Returns true if the player could still reach the exit with an extra barricade at <paramref name="position"/>.
-        /// </summary>
         public bool WouldHavePathToExitAfterBarricade(Vector2Int position)
         {
             var hypotheticalBlocked = new HashSet<Vector2Int> { position };
@@ -289,20 +220,13 @@ namespace RelicHunter.Core
 
         private GameObject ResolveBarricadePrefab()
         {
-            if (useMazeVisuals)
-            {
-                if (mazeBarricadePrefab != null) return mazeBarricadePrefab;
+            if (mazeBarricadePrefab != null) return mazeBarricadePrefab;
 
-                GameObject loaded = Resources.Load<GameObject>("Prefabs/Barricade");
-                if (loaded != null) return loaded;
+            GameObject loaded = Resources.Load<GameObject>("Prefabs/Barricade");
+            if (loaded != null) return loaded;
 
-                if (barricadePrefab != null) return barricadePrefab;
-
-                Debug.LogWarning("[GridManager] No MazeGen barricade prefab assigned.");
-                return null;
-            }
-
-            return barricadePrefab;
+            Debug.LogWarning("[GridManager] No barricade prefab assigned.");
+            return null;
         }
 
         private static void ConfigureBarricadeVisual(GameObject visualObj)
@@ -319,31 +243,11 @@ namespace RelicHunter.Core
         {
             ResolveMazeBridge();
 
-            if (useMazeVisuals)
-            {
-                if (mazeBridge != null)
-                    return mazeBridge.GridToWorld(cell);
+            if (mazeBridge != null)
+                return mazeBridge.GridToWorld(cell);
 
-                Debug.LogError("[GridManager] useMazeVisuals is enabled but MazeGridBridge is missing.");
-                return new Vector3(cell.x, cell.y, 0f);
-            }
-
+            Debug.LogError("[GridManager] MazeGridBridge is missing.");
             return new Vector3(cell.x, cell.y, 0f);
-        }
-
-        private void SpawnExitVisual()
-        {
-            if (useMazeVisuals) return;
-            if (exitPrefab == null) return;
-
-            exitPos = new Vector2Int(width - 1, 0);
-            Vector3 spawnPos = GetWorldPositionForCell(exitPos);
-
-            GameObject oldExit = GameObject.FindWithTag("Exit");
-            if (oldExit != null) Destroy(oldExit);
-
-            GameObject exitObj = Instantiate(exitPrefab, spawnPos, Quaternion.identity, gridVisualParent);
-            exitObj.tag = "Exit";
         }
 
         public bool IsTileWalkable(int x, int y)
@@ -351,13 +255,7 @@ namespace RelicHunter.Core
             if (x < 0 || x >= width || y < 0 || y >= height) return false;
 
             Vector2Int target = new Vector2Int(x, y);
-            if (activeBarricades.ContainsKey(target)) return false;
-
-            if (useMazeVisuals)
-                return true;
-
-            if (permanentWalls.Contains(target)) return false;
-            return true;
+            return !activeBarricades.ContainsKey(target);
         }
 
         public void ClearAllBarricades()

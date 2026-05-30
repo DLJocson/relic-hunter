@@ -1,9 +1,10 @@
 // =============================================================================
-// MazeGridBridge.cs — Syncs MazeGen visuals with Relic Hunter grid logic.
+// MazeGridBridge.cs — Syncs procedural maze visuals with Relic Hunter grid logic.
 // =============================================================================
 
 using System;
 using UnityEngine;
+using RelicHunter.Maze;
 using RelicHunter.Player;
 using RelicHunter.Enemy;
 
@@ -18,7 +19,6 @@ namespace RelicHunter.Core
 
         [Header("Scene References")]
         [SerializeField] private GridManager gridManager;
-        [SerializeField] private GameManager gameManager;
         [SerializeField] private PlayerController playerController;
         [SerializeField] private GuardController guardController;
 
@@ -31,9 +31,6 @@ namespace RelicHunter.Core
         private GameObject playerVisualInstance;
         private GameObject guardVisualInstance;
         private PlayerStatus playerStatus;
-
-        public Vector2Int ExitCell => generateMaze != null ? generateMaze.ExitCell : Vector2Int.zero;
-        public PlayerStatus PlayerStatus => playerStatus;
 
         private void Awake()
         {
@@ -288,7 +285,6 @@ namespace RelicHunter.Core
             if (generateMaze == null) generateMaze = GetComponent<GenerateMaze>();
             if (generateMaze == null) generateMaze = FindFirstObjectByType<GenerateMaze>();
             if (gridManager == null) gridManager = GridManager.Instance ?? FindFirstObjectByType<GridManager>();
-            if (gameManager == null) gameManager = GameManager.Instance ?? FindFirstObjectByType<GameManager>();
             if (playerController == null) playerController = FindFirstObjectByType<PlayerController>();
             if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
         }

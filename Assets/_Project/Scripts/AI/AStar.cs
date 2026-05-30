@@ -23,7 +23,7 @@ namespace RelicHunter.AI
             return FindPath(grid, start, goal, isGuard, extraBlocked).Count > 0;
         }
 
-        public static List<Vector2Int> FindPath(
+        private static List<Vector2Int> FindPath(
             GridManager grid,
             Vector2Int start,
             Vector2Int goal,

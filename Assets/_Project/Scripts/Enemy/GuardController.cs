@@ -2,7 +2,6 @@
 // GuardController.cs - Handles guard movement and behavior
 // =============================================================================
 
-using System;
 using System.Collections.Generic;
 using UnityEngine;
 using RelicHunter.Core;
@@ -22,8 +21,6 @@ namespace RelicHunter.Enemy
         [SerializeField] private bool allowGreedyFallback = true;
 
         public Vector2Int CurrentGridPos { get; private set; }
-
-        public event Action<Vector2Int> GuardMoved;
 
         private GridManager gridManager;
         private TurnManager turnManager;
@@ -120,7 +117,6 @@ namespace RelicHunter.Enemy
             }
 
             ApplyGuardPosition(nextStep);
-            GuardMoved?.Invoke(CurrentGridPos);
 
             if (turnManager != null)
             {
@@ -146,7 +142,7 @@ namespace RelicHunter.Enemy
                 CurrentGridPos,
                 thiefPos,
                 gridManager.exitPos,
-                new HashSet<Vector2Int>(gridManager.permanentWalls),
+                new HashSet<Vector2Int>(),
                 new Dictionary<Vector2Int, int>(gridManager.activeBarricades),
                 gridManager.Width,
                 gridManager.Height,
@@ -259,7 +255,7 @@ namespace RelicHunter.Enemy
 
         private void SnapTransformToGrid()
         {
-            if (mazeBridge != null && gridManager != null && gridManager.UseMazeVisuals)
+            if (mazeBridge != null)
                 transform.position = mazeBridge.GridToWorld(CurrentGridPos);
             else if (gridManager != null)
                 transform.position = gridManager.GetWorldPositionForCell(CurrentGridPos);

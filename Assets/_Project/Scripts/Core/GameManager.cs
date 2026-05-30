@@ -31,7 +31,6 @@ public class GameManager : MonoBehaviour
         public int barricadeDuration;
         public int maxBarricades;
         public int minimaxDepth;
-        public float wallDensity;
     }
 
     [Header("Scene References")]
@@ -55,7 +54,6 @@ public class GameManager : MonoBehaviour
     public float CurrentGuardSpeed { get; private set; } = 1f;
     public int CurrentBarricadeDuration { get; private set; } = 4;
     public int CurrentMaxBarricades { get; private set; } = 3;
-    public float CurrentWallDensity { get; private set; } = 0.18f;
 
     public MatchState CurrentMatchState { get; private set; } = MatchState.NotStarted;
 
@@ -91,9 +89,9 @@ public class GameManager : MonoBehaviour
         if (rounds == null || rounds.Length < 3)
             rounds = new RoundDefinition[3];
 
-        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1, 0.12f);
-        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2, 0.18f);
-        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3, 0.24f);
+        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1);
+        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2);
+        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3);
     }
 
     private void SetDefaultRoundIfEmpty(
@@ -104,8 +102,7 @@ public class GameManager : MonoBehaviour
         float speed,
         int duration,
         int maxB,
-        int depth,
-        float wallDensity)
+        int depth)
     {
         if (index < 0 || index >= rounds.Length || !string.IsNullOrWhiteSpace(rounds[index].roundName))
             return;
@@ -118,8 +115,7 @@ public class GameManager : MonoBehaviour
             guardSpeed = speed,
             barricadeDuration = duration,
             maxBarricades = maxB,
-            minimaxDepth = depth,
-            wallDensity = wallDensity
+            minimaxDepth = depth
         };
     }
 
@@ -148,32 +144,18 @@ public class GameManager : MonoBehaviour
         CurrentBarricadeDuration = round.barricadeDuration;
         CurrentMaxBarricades = round.maxBarricades;
         CurrentMinimaxDepth = round.minimaxDepth;
-        CurrentWallDensity = round.wallDensity;
 
         if (turnManager != null)
             turnManager.currentTurn = TurnManager.TurnState.Processing;
 
-        if (mazeGridBridge != null)
+        if (mazeGridBridge == null)
         {
-            int seed = BuildRoundSeed(currentRoundIndex);
-            mazeGridBridge.BeginRound(round, seed, () => CompleteRoundStart(round));
+            Debug.LogError("[GameManager] MazeGridBridge is required for round start.");
             return;
         }
 
-        if (gridManager != null)
-        {
-            gridManager.UpdateGridDimensions(round.gridWidth, round.gridHeight);
-            gridManager.ApplyRoundSettings(round.maxBarricades, round.barricadeDuration);
-
-            Vector2Int playerStart = new Vector2Int(0, 0);
-            Vector2Int guardStart = new Vector2Int(round.gridWidth - 1, round.gridHeight - 1);
-            Vector2Int exitTile = new Vector2Int(round.gridWidth - 1, 0);
-
-            int seed = BuildRoundSeed(currentRoundIndex);
-            gridManager.GenerateProceduralWalls(seed, round.wallDensity, playerStart, guardStart, exitTile);
-        }
-
-        CompleteRoundStart(round);
+        int seed = BuildRoundSeed(currentRoundIndex);
+        mazeGridBridge.BeginRound(round, seed, () => CompleteRoundStart(round));
     }
 
     private void CompleteRoundStart(RoundDefinition round)
@@ -225,8 +207,7 @@ public class GameManager : MonoBehaviour
             guardSpeed = 1f,
             barricadeDuration = 4,
             maxBarricades = 3,
-            minimaxDepth = 1,
-            wallDensity = 0.12f
+            minimaxDepth = 1
         };
     }
 

@@ -4,6 +4,7 @@
 
 using UnityEngine;
 using RelicHunter.Core;
+using RelicHunter.Maze;
 
 public class RoundFeedbackController : MonoBehaviour
 {

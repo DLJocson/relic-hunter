@@ -11,16 +11,23 @@ A turn-based, grid-based stealth and pursuit game developed in Unity that demons
 
 ```
 Assets/_Project/
-├─ Scenes/          → Game levels and environments
-├─ Scripts/         → All gameplay and system logic
-│  ├─ AI/           → Pathfinding and decision algorithms
-│  ├─ Core/         → Game management and core systems
-│  ├─ Player/       → Player controller logic
-│  ├─ Enemy/        → Enemy AI behavior
-│  └─ UI/           → User interface management
-├─ Prefabs/         → Reusable game object templates
-├─ Sprites/         → 2D graphics and visual assets
-└─ Audio/           → Sound effects and music
+├─ Scenes/              → Main game scene; Dev/ for optional maze-only tests
+├─ Scripts/
+│  ├─ AI/               → A*, Minimax; Editor/ for manual AI tests
+│  ├─ Core/             → GameManager, GridManager, TurnManager, MazeGridBridge
+│  ├─ Maze/             → Procedural maze (GenerateMaze, Room, PlayerStatus)
+│  ├─ Player/           → Player controller
+│  ├─ Enemy/            → Guard controller
+│  └─ UI/               → Round feedback (sprites, audio)
+├─ Resources/Prefabs/   → Runtime-loaded barricade & exit tile prefabs
+├─ Prefabs/
+│  ├─ Entities/         → Guard gameplay prefab
+│  ├─ Maze/             → Room, player/guard visual prefabs
+│  └─ Legacy/           → Reserved for deprecated flat-grid assets
+├─ Sprites/Maze/        → Player/guard sprite sheets
+└─ Audio/
+   ├─ Music/            → Background, win, lose clips
+   └─ SFX/              → Gameplay sound effects
 ```
 
 ---
@@ -31,7 +38,7 @@ Assets/_Project/
 | ------------ | ------------------------- | ---------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
 | **Jocson**   | 🤖 AI Algorithms & Review | Algorithm implementation, code review, merge coordination  | `AI/AStar.cs`, `AI/Minimax.cs`, `AI/AlphaBeta.cs`, `Core/GameManager.cs`, `Core/TurnManager.cs` |
 | **Cabbadu**  | 🎯 Enemy AI & Behavior    | AI behavior tuning, enemy balancing, strategic refinement  | `AI/Heuristics.cs`, `AI/PathNode.cs`, `AI/AIState.cs`, `Enemy/GuardController.cs`               |
-| **Lambohon** | 🎨 Visual Assets & UI     | Level layout, visual organization, asset management        | `Prefabs/`, `Sprites/`, `Audio/`, `UI/HUDController.cs`                                         |
+| **Lambohon** | 🎨 Visual Assets & UI     | Level layout, visual organization, asset management        | `Prefabs/`, `Sprites/`, `Audio/`, `UI/RoundFeedbackController.cs`                              |
 | **Salgado**  | 🛠️ Core Systems & QA      | Grid system, player control, testing, bug tracking, builds | `Core/GridManager.cs`, `Player/PlayerController.cs`, `UI/`, `ProjectSettings/`, `README.md`     |
 
 ### Detailed Responsibilities

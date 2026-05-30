@@ -239,7 +239,6 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
-    wallDensity: 0
   - roundName: 
     gridWidth: 0
     gridHeight: 0
@@ -247,7 +246,6 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
-    wallDensity: 0
   - roundName: 
     gridWidth: 0
     gridHeight: 0
@@ -255,7 +253,6 @@ MonoBehaviour:
     barricadeDuration: 0
     maxBarricades: 0
     minimaxDepth: 0
-    wallDensity: 0
   currentRoundIndex: 1
   playerWins: 0
   guardWins: 0
@@ -623,19 +620,15 @@ MonoBehaviour:
   m_EditorClassIdentifier: Assembly-CSharp::RelicHunter.Core.GridManager
   width: 9
   height: 9
-  tilePrefab: {fileID: 6243763376934753224, guid: 02f87036fee0ad34ebfb7bcb5f0b9ad4, type: 3}
-  wallPrefab: {fileID: 0}
-  barricadePrefab: {fileID: 6410830309474017556, guid: 0c6b7a570dad78e4eaaa7d6df79de899, type: 3}
   mazeBarricadePrefab: {fileID: 6410830309474017556, guid: 0c6b7a570dad78e4eaaa7d6df79de899, type: 3}
   exitPrefab: {fileID: 2026216443881427459, guid: 3ecd78b78361fa542a98359bff7e92b2, type: 3}
   gridVisualParent: {fileID: 309917373}
+  mazeBridge: {fileID: 2100000003}
   maxBarricadesAllowed: 3
   barricadeDuration: 4
   playerPos: {x: 0, y: 0}
   guardPos: {x: 8, y: 8}
   exitPos: {x: 8, y: 0}
-  useMazeVisuals: 1
-  mazeBridge: {fileID: 2100000003}
 --- !u!4 &1480344122
 Transform:
   m_ObjectHideFlags: 0
