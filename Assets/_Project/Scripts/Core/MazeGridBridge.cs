@@ -72,6 +72,7 @@ namespace RelicHunter.Core
 
             gridManager.UpdateGridDimensions(round.gridWidth, round.gridHeight);
             gridManager.exitPos = generateMaze.ExitCell;
+            gridManager.guardPos = generateMaze.GuardCell;
             gridManager.ClearAllBarricades();
 
             CleanupStrayExitMarkers();
@@ -187,7 +188,10 @@ namespace RelicHunter.Core
                 playerController.RefreshAfterMazeReady();
             }
 
-            Vector2Int guardStart = new Vector2Int(gridManager.Width - 1, gridManager.Height - 1);
+            Vector2Int guardStart = gridManager.guardPos;
+            if (guardStart.x < 0 || guardStart.x >= gridManager.Width || guardStart.y < 0 || guardStart.y >= gridManager.Height)
+                guardStart = new Vector2Int(gridManager.Width - 1, gridManager.Height - 1);
+
             if (guardController != null)
             {
                 guardController.ResetToPosition(guardStart);

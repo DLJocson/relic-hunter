@@ -73,7 +73,7 @@ public class RoundFeedbackController : MonoBehaviour
         }
     }
 
-    private void StartBackgroundMusic()
+    public void StartBackgroundMusic()
     {
         if (audioSource == null || backgroundMusic == null) return;
 

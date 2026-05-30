@@ -51,9 +51,9 @@ public class GameManager : MonoBehaviour
 
     [Header("Runtime Round Settings")]
     public int CurrentMinimaxDepth { get; private set; } = 1;
-    public float CurrentGuardSpeed { get; private set; } = 1f;
-    public int CurrentBarricadeDuration { get; private set; } = 4;
-    public int CurrentMaxBarricades { get; private set; } = 3;
+    public float CurrentGuardSpeed { get; private set; } = 1.25f;
+    public int CurrentBarricadeDuration { get; private set; } = 5;
+    public int CurrentMaxBarricades { get; private set; } = 4;
 
     public MatchState CurrentMatchState { get; private set; } = MatchState.NotStarted;
 
@@ -89,9 +89,9 @@ public class GameManager : MonoBehaviour
         if (rounds == null || rounds.Length < 3)
             rounds = new RoundDefinition[3];
 
-        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 4, 3, 1);
-        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.5f, 3, 2, 2);
-        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 2f, 2, 1, 3);
+        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1.25f, 5, 4, 1);
+        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.25f, 4, 3, 2);
+        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 1.5f, 3, 2, 3);
     }
 
     private void SetDefaultRoundIfEmpty(
@@ -211,9 +211,9 @@ public class GameManager : MonoBehaviour
             roundName = $"Round {index + 1}",
             gridWidth = 9,
             gridHeight = 9,
-            guardSpeed = 1f,
-            barricadeDuration = 4,
-            maxBarricades = 3,
+            guardSpeed = 1.25f,
+            barricadeDuration = 5,
+            maxBarricades = 4,
             minimaxDepth = 1
         };
     }
@@ -239,7 +239,10 @@ public class GameManager : MonoBehaviour
             gridManager.playerPos = new Vector2Int(0, 0);
         }
 
-        Vector2Int guardStart = new Vector2Int(gridManager.Width - 1, gridManager.Height - 1);
+        Vector2Int guardStart = gridManager.guardPos;
+        if (guardStart.x < 0 || guardStart.x >= gridManager.Width || guardStart.y < 0 || guardStart.y >= gridManager.Height)
+            guardStart = new Vector2Int(gridManager.Width - 1, gridManager.Height - 1);
+
         if (guardController != null)
             guardController.ResetToPosition(guardStart);
 
@@ -312,6 +315,8 @@ public class GameManager : MonoBehaviour
             yield return new WaitForSeconds(waitDuration);
 
         currentRoundIndex++;
+        ResolveSceneReferences();
+        roundFeedback?.StartBackgroundMusic();
         StartRound();
         roundTransitionCoroutine = null;
     }
