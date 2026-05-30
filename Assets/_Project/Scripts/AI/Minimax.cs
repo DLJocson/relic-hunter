@@ -3,6 +3,7 @@
 // Chooses the Guard's best move using minimax with alpha-beta pruning.
 // =============================================================================
 
+using System;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -46,6 +47,7 @@ public static class Minimax
         public Dictionary<Vector2Int, int> BarricadeTTLs;
         public int GridWidth;
         public int GridHeight;
+        public Func<Vector2Int, Vector2Int, bool> CanMoveBetween;
     }
 
     // ---------------------------------------------------------------------
@@ -62,7 +64,8 @@ public static class Minimax
         int gridHeight,
         int maxDepth,
         int barricadeDuration,
-        int maxBarricades)
+        int maxBarricades,
+        Func<Vector2Int, Vector2Int, bool> canMoveBetween = null)
     {
         obstacles ??= new HashSet<Vector2Int>();
         barricadeTTLs ??= new Dictionary<Vector2Int, int>();
@@ -81,7 +84,8 @@ public static class Minimax
             Obstacles = obstacles,
             BarricadeTTLs = barricadeTTLs,
             GridWidth = gridWidth,
-            GridHeight = gridHeight
+            GridHeight = gridHeight,
+            CanMoveBetween = canMoveBetween
         };
 
         List<Vector2Int> guardMoves = GetGuardMoves(root);
@@ -180,9 +184,18 @@ public static class Minimax
         List<Vector2Int> moves = new List<Vector2Int>(4);
         foreach (Vector2Int dir in CardinalDirs)
         {
-            Vector2Int tile = state.GuardPos + dir;
-            if (IsWalkable(tile, state))
-                moves.Add(tile);
+            Vector2Int adjacent = state.GuardPos + dir;
+
+            if (adjacent == state.ExitPos)
+            {
+                Vector2Int jumpTo = state.GuardPos + dir * 2;
+                if (CanGuardReachTile(state.GuardPos, jumpTo, state))
+                    moves.Add(jumpTo);
+                continue;
+            }
+
+            if (CanMoveTo(state.GuardPos, adjacent, state, isGuard: true))
+                moves.Add(adjacent);
         }
         return moves;
     }
@@ -194,7 +207,7 @@ public static class Minimax
         foreach (Vector2Int dir in CardinalDirs)
         {
             Vector2Int tile = state.ThiefPos + dir;
-            if (IsWalkable(tile, state))
+            if (CanMoveTo(state.ThiefPos, tile, state, isGuard: false))
                 moves.Add(new MinimaxMove { Type = MoveType.Walk, Position = tile });
         }
 
@@ -226,7 +239,8 @@ public static class Minimax
             Obstacles = state.Obstacles,
             BarricadeTTLs = state.BarricadeTTLs,
             GridWidth = state.GridWidth,
-            GridHeight = state.GridHeight
+            GridHeight = state.GridHeight,
+            CanMoveBetween = state.CanMoveBetween
         };
     }
 
@@ -242,7 +256,8 @@ public static class Minimax
                 Obstacles = state.Obstacles,
                 BarricadeTTLs = state.BarricadeTTLs,
                 GridWidth = state.GridWidth,
-                GridHeight = state.GridHeight
+                GridHeight = state.GridHeight,
+                CanMoveBetween = state.CanMoveBetween
             };
         }
         else
@@ -261,7 +276,8 @@ public static class Minimax
                 Obstacles = state.Obstacles, // We no longer merge walls and barricades!
                 BarricadeTTLs = newTTLs,
                 GridWidth = state.GridWidth,
-                GridHeight = state.GridHeight
+                GridHeight = state.GridHeight,
+                CanMoveBetween = state.CanMoveBetween
             };
         }
     }
@@ -295,7 +311,8 @@ public static class Minimax
             Obstacles = state.Obstacles,
             BarricadeTTLs = newTTLs,
             GridWidth = state.GridWidth,
-            GridHeight = state.GridHeight
+            GridHeight = state.GridHeight,
+            CanMoveBetween = state.CanMoveBetween
         };
     }
 
@@ -303,12 +320,67 @@ public static class Minimax
     // VALIDATION HELPERS (FIXED)
     // ---------------------------------------------------------------------
 
+    private static bool CanMoveTo(Vector2Int from, Vector2Int to, GameState state, bool isGuard)
+    {
+        if (!IsInBounds(to, state)) return false;
+
+        bool isBarricade = state.BarricadeTTLs != null && state.BarricadeTTLs.ContainsKey(to);
+        if (isBarricade) return false;
+
+        if (isGuard)
+        {
+            if (to == state.ExitPos) return false;
+
+            int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+            if (manhattan == 2)
+                return CanGuardReachTile(from, to, state);
+            if (manhattan != 1)
+                return false;
+        }
+
+        if (state.CanMoveBetween != null)
+            return state.CanMoveBetween(from, to);
+
+        bool isWall = state.Obstacles != null && state.Obstacles.Contains(to);
+        return !isWall;
+    }
+
+    private static bool CanGuardReachTile(Vector2Int from, Vector2Int to, GameState state)
+    {
+        Vector2Int delta = to - from;
+        int manhattan = Mathf.Abs(delta.x) + Mathf.Abs(delta.y);
+        if (manhattan != 2) return false;
+        if (delta.x != 0 && delta.y != 0) return false;
+
+        Vector2Int dir = new Vector2Int(
+            delta.x != 0 ? (delta.x > 0 ? 1 : -1) : 0,
+            delta.y != 0 ? (delta.y > 0 ? 1 : -1) : 0);
+
+        Vector2Int overExit = from + dir;
+        if (overExit != state.ExitPos) return false;
+        if (to == state.ExitPos) return false;
+
+        bool barricadeOnPath = state.BarricadeTTLs != null
+            && (state.BarricadeTTLs.ContainsKey(overExit) || state.BarricadeTTLs.ContainsKey(to));
+        if (barricadeOnPath) return false;
+
+        if (state.CanMoveBetween != null)
+        {
+            if (!state.CanMoveBetween(from, overExit)) return false;
+            if (!state.CanMoveBetween(overExit, to)) return false;
+            return CanMoveTo(overExit, to, state, isGuard: true);
+        }
+
+        bool wallOnPath = state.Obstacles != null
+            && (state.Obstacles.Contains(overExit) || state.Obstacles.Contains(to));
+        return !wallOnPath;
+    }
+
     private static bool IsWalkable(Vector2Int pos, GameState state)
     {
         bool isWall = state.Obstacles != null && state.Obstacles.Contains(pos);
         bool isBarricade = state.BarricadeTTLs != null && state.BarricadeTTLs.ContainsKey(pos);
 
-        // A tile is ONLY walkable if it is inside the grid, NOT a wall, and NOT a barricade
         return IsInBounds(pos, state) && !isWall && !isBarricade;
     }
 

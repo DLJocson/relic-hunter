@@ -3,6 +3,7 @@
 // =============================================================================
 
 using System;
+using System.Collections;
 using UnityEngine;
 using RelicHunter.Core;
 using RelicHunter.Player;
@@ -38,6 +39,8 @@ public class GameManager : MonoBehaviour
     [SerializeField] private TurnManager turnManager;
     [SerializeField] private PlayerController playerController;
     [SerializeField] private GuardController guardController;
+    [SerializeField] private MazeGridBridge mazeGridBridge;
+    [SerializeField] private RoundFeedbackController roundFeedback;
 
     [Header("Round Definitions")]
     [SerializeField] private RoundDefinition[] rounds = new RoundDefinition[3];
@@ -60,6 +63,9 @@ public class GameManager : MonoBehaviour
     public event Action<int, bool, int, int> OnRoundCompleted;
     public event Action<bool, int, int> OnMatchCompleted;
 
+    private bool waitingForMazeGeneration;
+    private Coroutine roundTransitionCoroutine;
+
     private void Awake()
     {
         if (Instance != null && Instance != this)
@@ -77,9 +83,7 @@ public class GameManager : MonoBehaviour
         ResolveSceneReferences();
 
         if (CurrentMatchState == MatchState.NotStarted)
-        {
             StartMatch();
-        }
     }
 
     private void EnsureDefaultRounds()
@@ -135,14 +139,26 @@ public class GameManager : MonoBehaviour
         if (index < 0 || index >= rounds.Length)
             return;
 
-        RoundDefinition round = rounds[index];
-        CurrentMatchState = MatchState.RoundActive;
+        RoundDefinition round = SanitizeRound(rounds[index], index);
+        rounds[index] = round;
+        CurrentMatchState = MatchState.RoundTransition;
+        waitingForMazeGeneration = mazeGridBridge != null;
 
         CurrentGuardSpeed = round.guardSpeed;
         CurrentBarricadeDuration = round.barricadeDuration;
         CurrentMaxBarricades = round.maxBarricades;
         CurrentMinimaxDepth = round.minimaxDepth;
         CurrentWallDensity = round.wallDensity;
+
+        if (turnManager != null)
+            turnManager.currentTurn = TurnManager.TurnState.Processing;
+
+        if (mazeGridBridge != null)
+        {
+            int seed = BuildRoundSeed(currentRoundIndex);
+            mazeGridBridge.BeginRound(round, seed, () => CompleteRoundStart(round));
+            return;
+        }
 
         if (gridManager != null)
         {
@@ -157,25 +173,61 @@ public class GameManager : MonoBehaviour
             gridManager.GenerateProceduralWalls(seed, round.wallDensity, playerStart, guardStart, exitTile);
         }
 
+        CompleteRoundStart(round);
+    }
+
+    private void CompleteRoundStart(RoundDefinition round)
+    {
+        waitingForMazeGeneration = false;
+        CurrentMatchState = MatchState.RoundActive;
+
+        if (gridManager != null)
+            gridManager.ApplyRoundSettings(round.maxBarricades, round.barricadeDuration);
+
         ResetPositionsForNewRound();
 
         if (guardController != null)
-        {
             guardController.SetGuardSpeed(round.guardSpeed);
-        }
 
         OnRoundStarted?.Invoke(currentRoundIndex, round);
 
         Debug.Log($"<color=orange><b>===================================================</b></color>");
         Debug.Log($"<color=lime><b>[STARTING {round.roundName.ToUpper()}]</b></color>");
-        Debug.Log($"<color=yellow>📐 Grid Dimensions: {round.gridWidth} x {round.gridHeight}</color>");
-        Debug.Log($"<color=white>📊 Current Match Score -> 👤 Player: {playerWins} | 🤖 Guard AI: {guardWins}</color>");
+        Debug.Log($"<color=yellow>Grid Dimensions: {round.gridWidth} x {round.gridHeight}</color>");
+        if (gridManager != null)
+            Debug.Log($"<color=yellow>Exit Tile: {gridManager.exitPos}</color>");
+        Debug.Log($"<color=white>Current Match Score -> Player: {playerWins} | Guard AI: {guardWins}</color>");
         Debug.Log($"<color=orange><b>===================================================</b></color>");
 
         if (turnManager != null)
-        {
             turnManager.currentTurn = TurnManager.TurnState.PlayerTurn;
+    }
+
+    private RoundDefinition SanitizeRound(RoundDefinition round, int index)
+    {
+        if (round.gridWidth >= 3 && round.gridHeight >= 3)
+            return round;
+
+        EnsureDefaultRounds();
+        if (index >= 0 && index < rounds.Length)
+        {
+            RoundDefinition fallback = rounds[index];
+            if (fallback.gridWidth >= 3 && fallback.gridHeight >= 3)
+                return fallback;
         }
+
+        Debug.LogWarning($"[GameManager] Round {index + 1} had invalid dimensions; using 9x9 defaults.");
+        return new RoundDefinition
+        {
+            roundName = $"Round {index + 1}",
+            gridWidth = 9,
+            gridHeight = 9,
+            guardSpeed = 1f,
+            barricadeDuration = 4,
+            maxBarricades = 3,
+            minimaxDepth = 1,
+            wallDensity = 0.12f
+        };
     }
 
     private int BuildRoundSeed(int roundIndex)
@@ -201,9 +253,7 @@ public class GameManager : MonoBehaviour
 
         Vector2Int guardStart = new Vector2Int(gridManager.Width - 1, gridManager.Height - 1);
         if (guardController != null)
-        {
             guardController.ResetToPosition(guardStart);
-        }
 
         gridManager.guardPos = guardStart;
     }
@@ -211,6 +261,9 @@ public class GameManager : MonoBehaviour
     public void EndRound(bool playerWon)
     {
         if (CurrentMatchState == MatchState.MatchOver)
+            return;
+
+        if (waitingForMazeGeneration)
             return;
 
         CurrentMatchState = MatchState.RoundTransition;
@@ -223,7 +276,7 @@ public class GameManager : MonoBehaviour
 
         OnRoundCompleted?.Invoke(currentRoundIndex, playerWon, playerWins, guardWins);
 
-        string roundWinner = playerWon ? "👤 PLAYER (THIEF)" : "🤖 GUARD AI";
+        string roundWinner = playerWon ? "PLAYER (THIEF)" : "GUARD AI";
         string roundColor = playerWon ? "green" : "red";
         Debug.Log($"<color={roundColor}><b>[ROUND COMPLETE]</b> {roundWinner} has won {activeRoundName}!</color>");
 
@@ -235,20 +288,41 @@ public class GameManager : MonoBehaviour
                 turnManager.currentTurn = TurnManager.TurnState.Processing;
 
             bool playerMatchWinner = playerWins >= 2;
-            string absoluteWinner = playerMatchWinner ? "PLAYER (THIEF)" : "GUARD AI";
 
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
-            Debug.Log($"<color=cyan><b>🏆🏆🏆 [MATCH OVER - FINAL SERIES WINNER] 🏆🏆🏆</b></color>");
-            Debug.Log($"<color=cyan><b>👑 Final Winner: {absoluteWinner}</b></color>");
-            Debug.Log($"<color=cyan><b>💯 Final Series Score -> Player: {playerWins} | Guard: {guardWins}</b></color>");
+            Debug.Log($"<color=cyan><b>[MATCH OVER - FINAL SERIES WINNER]</b></color>");
+            Debug.Log($"<color=cyan><b>Final Winner: {(playerMatchWinner ? "PLAYER (THIEF)" : "GUARD AI")}</b></color>");
+            Debug.Log($"<color=cyan><b>Final Series Score -> Player: {playerWins} | Guard: {guardWins}</b></color>");
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
 
             OnMatchCompleted?.Invoke(playerMatchWinner, playerWins, guardWins);
             return;
         }
 
+        if (roundTransitionCoroutine != null)
+            StopCoroutine(roundTransitionCoroutine);
+
+        roundTransitionCoroutine = StartCoroutine(TransitionToNextRoundAfterResultAudio(playerWon));
+    }
+
+    private IEnumerator TransitionToNextRoundAfterResultAudio(bool playerWonRound)
+    {
+        float waitDuration = GetResultAudioDuration(playerWonRound);
+        if (waitDuration > 0f)
+            yield return new WaitForSeconds(waitDuration);
+
         currentRoundIndex++;
         StartRound();
+        roundTransitionCoroutine = null;
+    }
+
+    private float GetResultAudioDuration(bool playerWonRound)
+    {
+        ResolveSceneReferences();
+        if (roundFeedback != null)
+            return roundFeedback.GetResultClipPlayDuration(playerWonRound);
+
+        return 0f;
     }
 
     private void ResolveSceneReferences()
@@ -257,5 +331,7 @@ public class GameManager : MonoBehaviour
         if (turnManager == null) turnManager = FindFirstObjectByType<TurnManager>();
         if (playerController == null) playerController = FindFirstObjectByType<PlayerController>();
         if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
+        if (mazeGridBridge == null) mazeGridBridge = FindFirstObjectByType<MazeGridBridge>();
+        if (roundFeedback == null) roundFeedback = FindFirstObjectByType<RoundFeedbackController>();
     }
 }

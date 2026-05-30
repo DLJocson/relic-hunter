@@ -20,6 +20,9 @@ namespace RelicHunter.Player
         private Vector2Int lastDirection = Vector2Int.zero;
         private float timeSinceLastMove = 0f;
 
+        private MazeGridBridge mazeBridge;
+        private RoundFeedbackController roundFeedback;
+
         public event Action<Vector2Int> PlayerMoved;
         public event Action<Vector2Int> BarricadePlaced;
 
@@ -41,7 +44,6 @@ namespace RelicHunter.Player
 
         private void HandleMovementInput()
         {
-            // Movement Keys - initial input uses GetKeyDown, repeat uses held key + delay
             Vector2Int keyDownDirection = GetKeyDownInput();
             if (keyDownDirection != Vector2Int.zero)
             {
@@ -71,7 +73,6 @@ namespace RelicHunter.Player
 
         private void HandleBarricadeInput()
         {
-            // Instant barricade placement using Arrow Keys
             if (Input.GetKeyDown(KeyCode.UpArrow)) TryDropBarricade(Vector2Int.up);
             else if (Input.GetKeyDown(KeyCode.DownArrow)) TryDropBarricade(Vector2Int.down);
             else if (Input.GetKeyDown(KeyCode.LeftArrow)) TryDropBarricade(Vector2Int.left);
@@ -80,7 +81,6 @@ namespace RelicHunter.Player
 
         private Vector2Int GetKeyDownInput()
         {
-            // Strictly WASD for movement
             if (Input.GetKeyDown(KeyCode.W)) return Vector2Int.up;
             if (Input.GetKeyDown(KeyCode.S)) return Vector2Int.down;
             if (Input.GetKeyDown(KeyCode.A)) return Vector2Int.left;
@@ -90,7 +90,6 @@ namespace RelicHunter.Player
 
         private Vector2Int GetDirectionalInput()
         {
-            // Strictly WASD for movement
             if (Input.GetKey(KeyCode.W)) return Vector2Int.up;
             if (Input.GetKey(KeyCode.S)) return Vector2Int.down;
             if (Input.GetKey(KeyCode.A)) return Vector2Int.left;
@@ -102,30 +101,36 @@ namespace RelicHunter.Player
         {
             Vector2Int target = gridPosition + direction;
 
-            if (gridManager != null && gridManager.IsTileWalkable(target.x, target.y))
+            if (!CanStep(gridPosition, target))
+                return;
+
+            gridPosition = target;
+            SnapTransformToGrid();
+            RegisterPlayerPosition();
+
+            PlayerMoved?.Invoke(gridPosition);
+
+            if (turnManager != null)
             {
-                gridPosition = target;
-                SnapTransformToGrid();
-                RegisterPlayerPosition();
-
-                PlayerMoved?.Invoke(gridPosition);
-
-                Debug.Log($"[PlayerController] Player stepped onto {gridPosition}. Intercepting condition checks.");
-
-                if (turnManager != null)
-                {
-                    bool gameHasEnded = turnManager.CheckWinLossConditions();
-                    if (gameHasEnded)
-                    {
-                        return;
-                    }
-                }
-
-                if (turnManager != null)
-                {
-                    turnManager.EndPlayerTurn();
-                }
+                bool gameHasEnded = turnManager.CheckWinLossConditions();
+                if (gameHasEnded) return;
             }
+
+            if (turnManager != null)
+                turnManager.EndPlayerTurn();
+        }
+
+        private bool CanStep(Vector2Int from, Vector2Int to)
+        {
+            if (gridManager == null) return false;
+
+            if (mazeBridge != null && gridManager.UseMazeVisuals)
+            {
+                if (gridManager.activeBarricades.ContainsKey(to)) return false;
+                return mazeBridge.CanMoveBetween(from, to);
+            }
+
+            return gridManager.CanEnterCell(from, to);
         }
 
         private void TryDropBarricade(Vector2Int direction)
@@ -134,30 +139,41 @@ namespace RelicHunter.Player
 
             if (gridManager != null)
             {
-                bool success = gridManager.TryPlaceBarricade(targetPos);
+                bool success = gridManager.TryPlaceBarricade(targetPos, out bool wouldTrapPlayer);
                 if (success)
                 {
                     BarricadePlaced?.Invoke(targetPos);
 
                     if (turnManager != null)
-                    {
                         turnManager.EndPlayerTurn();
-                    }
+                }
+                else if (wouldTrapPlayer)
+                {
+                    roundFeedback?.PlayBarricadeDeniedSound();
                 }
             }
         }
 
         public void SnapTransformToGrid()
         {
-            transform.position = new Vector3(gridPosition.x, gridPosition.y, 0f);
+            if (mazeBridge != null && gridManager != null && gridManager.UseMazeVisuals)
+                transform.position = mazeBridge.GridToWorld(gridPosition);
+            else if (gridManager != null)
+                transform.position = gridManager.GetWorldPositionForCell(gridPosition);
+            else
+                transform.position = new Vector3(gridPosition.x, gridPosition.y, 0f);
+        }
+
+        public void RefreshAfterMazeReady()
+        {
+            SnapTransformToGrid();
+            RegisterPlayerPosition();
         }
 
         private void RegisterPlayerPosition()
         {
             if (gridManager != null)
-            {
                 gridManager.playerPos = gridPosition;
-            }
         }
 
         private void ResolveSceneReferences()
@@ -167,6 +183,13 @@ namespace RelicHunter.Player
 
             if (gridManager == null)
                 gridManager = GridManager.Instance != null ? GridManager.Instance : FindFirstObjectByType<GridManager>();
+
+            if (mazeBridge == null)
+                mazeBridge = MazeGridBridge.Instance != null ? MazeGridBridge.Instance : FindFirstObjectByType<MazeGridBridge>();
+
+            if (roundFeedback == null)
+                roundFeedback = FindFirstObjectByType<RoundFeedbackController>();
         }
     }
 }
+

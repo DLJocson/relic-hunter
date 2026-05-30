@@ -27,6 +27,7 @@ namespace RelicHunter.Enemy
 
         private GridManager gridManager;
         private TurnManager turnManager;
+        private MazeGridBridge mazeBridge;
 
         private void Awake()
         {
@@ -112,15 +113,13 @@ namespace RelicHunter.Enemy
                 nextStep = FindGreedyFallbackMove(thiefPos);
             }
 
-            if (!gridManager.IsTileWalkable(nextStep.x, nextStep.y))
+            if (!CanStep(CurrentGridPos, nextStep))
             {
                 Debug.LogWarning("[GuardController] Blocked an illegal AI move! Guard is holding position.");
                 nextStep = CurrentGridPos;
             }
 
-            CurrentGridPos = nextStep;
-            SnapTransformToGrid();
-            RegisterGuardPosition();
+            ApplyGuardPosition(nextStep);
             GuardMoved?.Invoke(CurrentGridPos);
 
             if (turnManager != null)
@@ -153,7 +152,8 @@ namespace RelicHunter.Enemy
                 gridManager.Height,
                 maxDepth,
                 gridManager.barricadeDuration,
-                gridManager.maxBarricadesAllowed
+                gridManager.maxBarricadesAllowed,
+                (from, to) => CanTraverseForAi(from, to)
             );
 
             if (bestStep == Minimax.TRAPPED)
@@ -176,22 +176,16 @@ namespace RelicHunter.Enemy
 
             if (dx != 0)
             {
-                Vector2Int testStep = CurrentGridPos + new Vector2Int(dx, 0);
-                if (gridManager.IsTileWalkable(testStep.x, testStep.y))
-                {
-                    bestStep = testStep;
-                    stepTaken = true;
-                }
+                TryPickGreedyStep(CurrentGridPos + new Vector2Int(dx, 0), ref bestStep, ref stepTaken);
+                if (!stepTaken)
+                    TryPickGreedyStep(CurrentGridPos + new Vector2Int(dx * 2, 0), ref bestStep, ref stepTaken);
             }
 
             if (!stepTaken && dy != 0)
             {
-                Vector2Int testStep = CurrentGridPos + new Vector2Int(0, dy);
-                if (gridManager.IsTileWalkable(testStep.x, testStep.y))
-                {
-                    bestStep = testStep;
-                    stepTaken = true;
-                }
+                TryPickGreedyStep(CurrentGridPos + new Vector2Int(0, dy), ref bestStep, ref stepTaken);
+                if (!stepTaken)
+                    TryPickGreedyStep(CurrentGridPos + new Vector2Int(0, dy * 2), ref bestStep, ref stepTaken);
             }
 
             if (!stepTaken)
@@ -201,21 +195,76 @@ namespace RelicHunter.Enemy
                 foreach (Vector2Int dir in fallbackDirections)
                 {
                     Vector2Int testStep = CurrentGridPos + dir;
-                    if (gridManager.IsTileWalkable(testStep.x, testStep.y))
-                    {
-                        bestStep = testStep;
-                        stepTaken = true;
+                    if (TryPickGreedyStep(testStep, ref bestStep, ref stepTaken))
                         break;
-                    }
+
+                    Vector2Int leapStep = CurrentGridPos + dir * 2;
+                    if (TryPickGreedyStep(leapStep, ref bestStep, ref stepTaken))
+                        break;
                 }
             }
 
             return bestStep;
         }
 
+        private bool CanStep(Vector2Int from, Vector2Int to)
+        {
+            if (gridManager == null) return false;
+
+            int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+            if (manhattan == 2)
+                return gridManager.CanGuardLeapTo(from, to);
+            if (manhattan == 1)
+                return gridManager.CanEnterCell(from, to, isGuard: true);
+
+            return false;
+        }
+
+        /// <summary>Topology-only check for minimax simulation (exit leap handled in Minimax).</summary>
+        private bool CanTraverseForAi(Vector2Int from, Vector2Int to)
+        {
+            if (gridManager == null) return false;
+
+            int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+            if (manhattan == 2)
+                return gridManager.CanGuardLeapTo(from, to);
+            if (manhattan == 1)
+                return gridManager.CanEnterCell(from, to, isGuard: false);
+
+            return false;
+        }
+
+        private bool TryPickGreedyStep(Vector2Int testStep, ref Vector2Int bestStep, ref bool stepTaken)
+        {
+            if (!CanStep(CurrentGridPos, testStep))
+                return false;
+
+            bestStep = testStep;
+            stepTaken = true;
+            return true;
+        }
+
+        private void ApplyGuardPosition(Vector2Int gridPos)
+        {
+            CurrentGridPos = gridPos;
+            SnapTransformToGrid();
+            RegisterGuardPosition();
+        }
+
+        public void RefreshAfterMazeReady()
+        {
+            SnapTransformToGrid();
+            RegisterGuardPosition();
+        }
+
         private void SnapTransformToGrid()
         {
-            transform.position = new Vector3(CurrentGridPos.x, CurrentGridPos.y, 0f);
+            if (mazeBridge != null && gridManager != null && gridManager.UseMazeVisuals)
+                transform.position = mazeBridge.GridToWorld(CurrentGridPos);
+            else if (gridManager != null)
+                transform.position = gridManager.GetWorldPositionForCell(CurrentGridPos);
+            else
+                transform.position = new Vector3(CurrentGridPos.x, CurrentGridPos.y, 0f);
         }
 
         private void RegisterGuardPosition()
@@ -231,6 +280,9 @@ namespace RelicHunter.Enemy
 
             if (turnManager == null)
                 turnManager = TurnManager.Instance != null ? TurnManager.Instance : FindFirstObjectByType<TurnManager>();
+
+            if (mazeBridge == null)
+                mazeBridge = MazeGridBridge.Instance != null ? MazeGridBridge.Instance : FindFirstObjectByType<MazeGridBridge>();
         }
 
         private void EndGuardTurnSafely()
