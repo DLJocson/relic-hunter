@@ -35,8 +35,10 @@ namespace RelicHunter.Core
         private void Start()
         {
             ResolveReferences();
-            currentTurn = TurnState.PlayerTurn;
-            Debug.Log("<color=cyan>TurnManager: System initialized. Player Turn Active.</color>");
+            currentTurn = TurnState.Processing;
+            if (uiManager != null)
+                uiManager.UpdateTurnNotice(currentTurn);
+            Debug.Log("<color=cyan>TurnManager: System initialized. Awaiting match start.</color>");
         }
 
         private void ResolveReferences()
@@ -65,7 +67,7 @@ namespace RelicHunter.Core
 
                 if (gridManager != null && uiManager != null)
                 {
-                    uiManager.UpdateBarricadeCount(gridManager.activeBarricades.Count, gridManager.maxBarricadesAllowed);
+                    uiManager.UpdateBarricades(gridManager.activeBarricades.Count, gridManager.maxBarricadesAllowed);
                 }
             }
             catch (System.Exception ex)
@@ -143,8 +145,8 @@ namespace RelicHunter.Core
                 currentTurn = TurnState.Processing;
                 Debug.Log("<color=red><b>[GAME OVER]</b> The Guard caught the player!</color>");
 
-                var ui = FindFirstObjectByType<RelicHunter.UI.UIManager>();
-                if (ui != null) ui.UpdateTurnNotice(currentTurn);
+                if (uiManager != null)
+                    uiManager.UpdateTurnNotice(currentTurn);
 
                 if (gameManager != null)
                 {

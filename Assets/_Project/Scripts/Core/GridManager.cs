@@ -4,10 +4,13 @@
 
 using System.Collections.Generic;
 using RelicHunter.AI;
+using RelicHunter.Enemy;
+using RelicHunter.Player;
 using UnityEngine;
 
 namespace RelicHunter.Core
 {
+    [DefaultExecutionOrder(-100)]
     public class GridManager : MonoBehaviour
     {
         public static GridManager Instance { get; private set; }
@@ -26,6 +29,17 @@ namespace RelicHunter.Core
 
         [Header("Maze Integration")]
         [SerializeField] private MazeGridBridge mazeBridge;
+
+        [Header("Entity Prefabs")]
+        [SerializeField] private GameObject playerPrefab;
+        [SerializeField] private GameObject guardPrefab;
+
+        [Header("Round Entities")]
+        [SerializeField] private PlayerController playerController;
+        [SerializeField] private GuardController guardController;
+
+        private GameObject currentPlayer;
+        private GameObject currentGuard;
 
         public Dictionary<Vector2Int, int> activeBarricades = new Dictionary<Vector2Int, int>();
         public Dictionary<Vector2Int, GameObject> visualBarricades = new Dictionary<Vector2Int, GameObject>();
@@ -49,6 +63,195 @@ namespace RelicHunter.Core
             }
 
             ResolveMazeBridge();
+            ResolveRoundEntities();
+            DeactivateRoundEntities();
+        }
+
+        public void ResolveRoundEntities()
+        {
+            if (playerController == null)
+                playerController = FindFirstObjectByType<PlayerController>(FindObjectsInactive.Include);
+
+            if (guardController == null)
+                guardController = FindFirstObjectByType<GuardController>(FindObjectsInactive.Include);
+        }
+
+        /// <summary>
+        /// Hides Player and Guard until the maze for the current round is ready.
+        /// </summary>
+        public void DeactivateRoundEntities()
+        {
+            ResolveRoundEntities();
+            SetRoundEntityVisibility(false);
+        }
+
+        /// <summary>
+        /// Shows Player and Guard after maze generation and spawn placement are complete.
+        /// </summary>
+        public void ActivateRoundEntities()
+        {
+            ResolveRoundEntities();
+            SetRoundEntityVisibility(true);
+        }
+
+        /// <summary>
+        /// Called before each maze build so entities stay hidden during generation.
+        /// </summary>
+        public void PrepareForRoundGeneration()
+        {
+            DeactivateRoundEntities();
+            DestroyRoundEntities();
+        }
+
+        /// <summary>
+        /// Clears round entities before a full match restart to avoid duplicate visuals.
+        /// </summary>
+        public void ResetForMatchRestart()
+        {
+            DeactivateRoundEntities();
+            DestroyRoundEntities();
+            ClearAllBarricades();
+            playerPos = Vector2Int.zero;
+            guardPos = Vector2Int.zero;
+        }
+
+        public void ConfigureEntityPrefabs(GameObject player, GameObject guard)
+        {
+            if (player != null)
+                playerPrefab = player;
+
+            if (guard != null)
+                guardPrefab = guard;
+        }
+
+        public void DestroyRoundEntities()
+        {
+            DestroyEntityVisualChildren();
+
+            if (currentPlayer != null)
+            {
+                Destroy(currentPlayer);
+                currentPlayer = null;
+            }
+
+            if (currentGuard != null)
+            {
+                Destroy(currentGuard);
+                currentGuard = null;
+            }
+
+            playerController = null;
+            guardController = null;
+        }
+
+        public void SpawnRoundEntities()
+        {
+            DestroyRoundEntities();
+
+            GameObject resolvedPlayerPrefab = ResolvePlayerPrefab();
+            GameObject resolvedGuardPrefab = ResolveGuardPrefab();
+
+            if (resolvedPlayerPrefab == null || resolvedGuardPrefab == null)
+            {
+                Debug.LogError("[GridManager] Player or Guard prefab is missing. Assign prefabs on GridManager or GameManager.");
+                return;
+            }
+
+            currentPlayer = Instantiate(resolvedPlayerPrefab, transform);
+            currentPlayer.name = "Player";
+
+            currentGuard = Instantiate(resolvedGuardPrefab, transform);
+            currentGuard.name = "Guard";
+
+            playerController = currentPlayer.GetComponent<PlayerController>();
+            guardController = currentGuard.GetComponent<GuardController>();
+
+            if (playerController == null || guardController == null)
+            {
+                Debug.LogError("[GridManager] Spawned prefabs are missing PlayerController or GuardController.");
+                DestroyRoundEntities();
+                return;
+            }
+
+            Vector2Int playerStart = Vector2Int.zero;
+            Vector2Int guardStart = guardPos;
+            if (guardStart.x < 0 || guardStart.x >= width || guardStart.y < 0 || guardStart.y >= height)
+                guardStart = new Vector2Int(width - 1, height - 1);
+
+            playerController.gridPosition = playerStart;
+            currentPlayer.transform.position = GetWorldPositionForCell(playerStart);
+            playerPos = playerStart;
+
+            guardController.ResetToPosition(guardStart);
+            currentGuard.transform.position = GetWorldPositionForCell(guardStart);
+            guardPos = guardStart;
+
+            DeactivateRoundEntities();
+
+            Debug.Log($"[GridManager] Spawned Player at {playerStart} and Guard at {guardStart}.");
+        }
+
+        private GameObject ResolvePlayerPrefab()
+        {
+            if (playerPrefab != null)
+                return playerPrefab;
+
+            GameObject loaded = Resources.Load<GameObject>("Prefabs/Player");
+            if (loaded != null)
+                return loaded;
+
+            return Resources.Load<GameObject>("Prefabs/PlayerPrefab");
+        }
+
+        private GameObject ResolveGuardPrefab()
+        {
+            if (guardPrefab != null)
+                return guardPrefab;
+
+            GameObject loaded = Resources.Load<GameObject>("Prefabs/Guard");
+            if (loaded != null)
+                return loaded;
+
+            return Resources.Load<GameObject>("Prefabs/GuardPrefab");
+        }
+
+        private void SetRoundEntityVisibility(bool visible)
+        {
+            SetEntityRootVisibility(playerController, visible);
+            SetEntityRootVisibility(guardController, visible);
+        }
+
+        private static void SetEntityRootVisibility(MonoBehaviour entity, bool visible)
+        {
+            if (entity == null)
+                return;
+
+            // Root placeholder sprites stay off; character art lives on PlayerVisual / GuardVisual children.
+            SpriteRenderer placeholder = entity.GetComponent<SpriteRenderer>();
+            if (placeholder != null)
+                placeholder.enabled = false;
+
+            foreach (Transform child in entity.transform)
+            {
+                if (child != null)
+                    child.gameObject.SetActive(visible);
+            }
+        }
+
+        private void DestroyEntityVisualChildren()
+        {
+            DestroyNamedChild(playerController, "PlayerVisual");
+            DestroyNamedChild(guardController, "GuardVisual");
+        }
+
+        private static void DestroyNamedChild(MonoBehaviour entity, string childName)
+        {
+            if (entity == null)
+                return;
+
+            Transform child = entity.transform.Find(childName);
+            if (child != null)
+                Destroy(child.gameObject);
         }
 
         private void ResolveMazeBridge()
@@ -204,11 +407,8 @@ namespace RelicHunter.Core
                 visualBarricades[position] = visualObj;
             }
 
-            var ui = FindFirstObjectByType<RelicHunter.UI.UIManager>();
-            if (ui != null)
-            {
-                ui.UpdateBarricadeCount(activeBarricades.Count, maxBarricadesAllowed);
-            }
+            if (RelicHunter.UI.UIManager.Instance != null)
+                RelicHunter.UI.UIManager.Instance.UpdateBarricades(activeBarricades.Count, maxBarricadesAllowed);
 
             return true;
         }

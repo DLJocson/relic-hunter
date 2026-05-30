@@ -41,6 +41,10 @@ public class GameManager : MonoBehaviour
     [SerializeField] private MazeGridBridge mazeGridBridge;
     [SerializeField] private RoundFeedbackController roundFeedback;
 
+    [Header("Entity Prefabs")]
+    [SerializeField] private GameObject playerPrefab;
+    [SerializeField] private GameObject guardPrefab;
+
     [Header("Round Definitions")]
     [SerializeField] private RoundDefinition[] rounds = new RoundDefinition[3];
 
@@ -51,8 +55,8 @@ public class GameManager : MonoBehaviour
 
     [Header("Runtime Round Settings")]
     public int CurrentMinimaxDepth { get; private set; } = 1;
-    public float CurrentGuardSpeed { get; private set; } = 1.25f;
-    public int CurrentBarricadeDuration { get; private set; } = 5;
+    public float CurrentGuardSpeed { get; private set; } = 1f;
+    public int CurrentBarricadeDuration { get; private set; } = 6;
     public int CurrentMaxBarricades { get; private set; } = 4;
 
     public MatchState CurrentMatchState { get; private set; } = MatchState.NotStarted;
@@ -63,6 +67,7 @@ public class GameManager : MonoBehaviour
 
     private bool waitingForMazeGeneration;
     private Coroutine roundTransitionCoroutine;
+    private bool isStartingGameSequence;
 
     private void Awake()
     {
@@ -80,8 +85,11 @@ public class GameManager : MonoBehaviour
     {
         ResolveSceneReferences();
 
-        if (CurrentMatchState == MatchState.NotStarted)
-            StartMatch();
+        if (gridManager != null)
+            gridManager.DeactivateRoundEntities();
+
+        if (RelicHunter.UI.UIManager.Instance != null)
+            RelicHunter.UI.UIManager.Instance.ShowMainMenu();
     }
 
     private void EnsureDefaultRounds()
@@ -89,9 +97,9 @@ public class GameManager : MonoBehaviour
         if (rounds == null || rounds.Length < 3)
             rounds = new RoundDefinition[3];
 
-        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1.25f, 5, 4, 1);
-        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.25f, 4, 3, 2);
-        SetDefaultRoundIfEmpty(2, "Round 3 (Hard)", 15, 15, 1.5f, 3, 2, 3);
+        SetDefaultRoundIfEmpty(0, "Round 1 (Easy)", 9, 9, 1f, 6, 4, 1);
+        SetDefaultRoundIfEmpty(1, "Round 2 (Medium)", 12, 12, 1.25f, 5, 3, 2);
+        SetDefaultRoundIfEmpty(2, "Round 3 (Difficult)", 15, 15, 1.34f, 4, 2, 3);
     }
 
     private void SetDefaultRoundIfEmpty(
@@ -119,12 +127,80 @@ public class GameManager : MonoBehaviour
         };
     }
 
+    [Obsolete("Use StartGameSequence() so the main menu and round-start UI run first.")]
     public void StartMatch()
     {
+        StartGameSequence();
+    }
+
+    public void StartGameSequence()
+    {
+        ResolveSceneReferences();
+
+        if (CurrentMatchState != MatchState.NotStarted || isStartingGameSequence)
+            return;
+
+        isStartingGameSequence = true;
+
+        if (roundTransitionCoroutine != null)
+        {
+            StopCoroutine(roundTransitionCoroutine);
+            roundTransitionCoroutine = null;
+        }
+
+        if (RelicHunter.UI.UIManager.Instance != null)
+            RelicHunter.UI.UIManager.Instance.ShowRoundStart();
+
+        StartCoroutine(GenerateAndStartMatchRoutine());
+    }
+
+    public void QuitGame()
+    {
+        Application.Quit();
+
+#if UNITY_EDITOR
+        UnityEditor.EditorApplication.isPlaying = false;
+#endif
+    }
+
+    public void RestartMatch()
+    {
+        if (roundTransitionCoroutine != null)
+        {
+            StopCoroutine(roundTransitionCoroutine);
+            roundTransitionCoroutine = null;
+        }
+
+        StopAllCoroutines();
+
         playerWins = 0;
         guardWins = 0;
         currentRoundIndex = 1;
+        CurrentMatchState = MatchState.NotStarted;
+        waitingForMazeGeneration = false;
+        isStartingGameSequence = false;
+
+        if (RelicHunter.UI.UIManager.Instance != null)
+            RelicHunter.UI.UIManager.Instance.UpdateScore(0, 0);
+
+        ResolveSceneReferences();
+
+        if (gridManager != null)
+            gridManager.ResetForMatchRestart();
+
+        StartGameSequence();
+    }
+
+    private IEnumerator GenerateAndStartMatchRoutine()
+    {
+        yield return new WaitForSeconds(3f);
+
+        playerWins = 0;
+        guardWins = 0;
+        currentRoundIndex = 1;
+
         StartRound();
+        isStartingGameSequence = false;
     }
 
     public void StartRound()
@@ -154,6 +230,12 @@ public class GameManager : MonoBehaviour
             return;
         }
 
+        if (gridManager != null)
+        {
+            gridManager.ConfigureEntityPrefabs(playerPrefab, guardPrefab);
+            gridManager.PrepareForRoundGeneration();
+        }
+
         int seed = BuildRoundSeed(currentRoundIndex);
         mazeGridBridge.BeginRound(round, seed, () => CompleteRoundStart(round));
     }
@@ -166,16 +248,31 @@ public class GameManager : MonoBehaviour
         if (gridManager != null)
             gridManager.ApplyRoundSettings(round.maxBarricades, round.barricadeDuration);
 
+        ResolveSceneReferences();
+
+        if (mazeGridBridge != null)
+            mazeGridBridge.RefreshEntityControllerReferences();
+
         ResetPositionsForNewRound();
+
+        if (gridManager != null)
+            gridManager.ActivateRoundEntities();
 
         if (guardController != null)
             guardController.SetGuardSpeed(round.guardSpeed);
 
         if (RelicHunter.UI.UIManager.Instance != null)
         {
-            RelicHunter.UI.UIManager.Instance.UpdateRoundInfo(round.roundName, round.gridWidth, round.gridHeight);
-            RelicHunter.UI.UIManager.Instance.UpdateScoreboard(playerWins, guardWins);
-            RelicHunter.UI.UIManager.Instance.UpdateBarricadeCount(0, round.maxBarricades);
+            RelicHunter.UI.UIManager.Instance.UpdateRound(
+                currentRoundIndex,
+                GetRoundDifficultyLabel(round.gridWidth, round.gridHeight),
+                round.gridWidth,
+                round.gridHeight,
+                round.guardSpeed,
+                round.barricadeDuration);
+            RelicHunter.UI.UIManager.Instance.UpdateScore(playerWins, guardWins);
+            RelicHunter.UI.UIManager.Instance.UpdateBarricades(0, round.maxBarricades);
+            RelicHunter.UI.UIManager.Instance.ShowHUD();
         }
 
         OnRoundStarted?.Invoke(currentRoundIndex, round);
@@ -189,7 +286,10 @@ public class GameManager : MonoBehaviour
         Debug.Log($"<color=orange><b>===================================================</b></color>");
 
         if (turnManager != null)
+        {
             turnManager.currentTurn = TurnManager.TurnState.PlayerTurn;
+            RelicHunter.UI.UIManager.Instance?.UpdateTurnNotice(turnManager.currentTurn);
+        }
     }
 
     private RoundDefinition SanitizeRound(RoundDefinition round, int index)
@@ -211,8 +311,8 @@ public class GameManager : MonoBehaviour
             roundName = $"Round {index + 1}",
             gridWidth = 9,
             gridHeight = 9,
-            guardSpeed = 1.25f,
-            barricadeDuration = 5,
+            guardSpeed = 1f,
+            barricadeDuration = 6,
             maxBarricades = 4,
             minimaxDepth = 1
         };
@@ -225,6 +325,17 @@ public class GameManager : MonoBehaviour
             int timeSeed = (int)(DateTime.UtcNow.Ticks & 0x7FFFFFFF);
             return timeSeed ^ (roundIndex * 7919);
         }
+    }
+
+    private static string GetRoundDifficultyLabel(int gridWidth, int gridHeight)
+    {
+        if (gridWidth >= 15 || gridHeight >= 15)
+            return "HARD";
+
+        if (gridWidth >= 12 || gridHeight >= 12)
+            return "MEDIUM";
+
+        return "EASY";
     }
 
     private void ResetPositionsForNewRound()
@@ -267,8 +378,8 @@ public class GameManager : MonoBehaviour
 
         if (RelicHunter.UI.UIManager.Instance != null)
         {
-            RelicHunter.UI.UIManager.Instance.DisplayRoundWinner(playerWon, activeRoundName);
-            RelicHunter.UI.UIManager.Instance.UpdateScoreboard(playerWins, guardWins); // Updates numbers instantly
+            RelicHunter.UI.UIManager.Instance.ShowRoundWinner(playerWon);
+            RelicHunter.UI.UIManager.Instance.UpdateScore(playerWins, guardWins); // Updates numbers instantly
         }
 
         OnRoundCompleted?.Invoke(currentRoundIndex, playerWon, playerWins, guardWins);
@@ -289,7 +400,7 @@ public class GameManager : MonoBehaviour
 
             if (RelicHunter.UI.UIManager.Instance != null)
             {
-                RelicHunter.UI.UIManager.Instance.DisplayMatchWinner(absoluteWinner);
+                RelicHunter.UI.UIManager.Instance.ShowGameOver(playerMatchWinner);
             }
 
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
@@ -333,9 +444,14 @@ public class GameManager : MonoBehaviour
     private void ResolveSceneReferences()
     {
         if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
+        gridManager?.ConfigureEntityPrefabs(playerPrefab, guardPrefab);
+
         if (turnManager == null) turnManager = FindFirstObjectByType<TurnManager>();
-        if (playerController == null) playerController = FindFirstObjectByType<PlayerController>();
-        if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
+        if (playerController == null)
+            playerController = FindFirstObjectByType<PlayerController>(FindObjectsInactive.Include);
+
+        if (guardController == null)
+            guardController = FindFirstObjectByType<GuardController>(FindObjectsInactive.Include);
         if (mazeGridBridge == null) mazeGridBridge = FindFirstObjectByType<MazeGridBridge>();
         if (roundFeedback == null) roundFeedback = FindFirstObjectByType<RoundFeedbackController>();
     }

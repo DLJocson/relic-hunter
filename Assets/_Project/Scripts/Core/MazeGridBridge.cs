@@ -58,7 +58,6 @@ namespace RelicHunter.Core
             {
                 generateMaze.OnGenerationComplete -= OnMazeReady;
                 ApplyMazeToGrid(round);
-                SetRoundEntitiesVisible(true);
                 onComplete?.Invoke();
             }
 
@@ -77,6 +76,8 @@ namespace RelicHunter.Core
 
             CleanupStrayExitMarkers();
             SpawnExitVisual();
+            gridManager.SpawnRoundEntities();
+            RefreshEntityControllerReferences();
             EnsureEntityVisuals();
             RefreshEntityTransforms();
             FrameCamera();
@@ -135,9 +136,16 @@ namespace RelicHunter.Core
             return Resources.Load<GameObject>("Prefabs/Exit Tile");
         }
 
+        public void RefreshEntityControllerReferences()
+        {
+            playerController = FindFirstObjectByType<PlayerController>(FindObjectsInactive.Include);
+            guardController = FindFirstObjectByType<GuardController>(FindObjectsInactive.Include);
+        }
+
         public void EnsureEntityVisuals()
         {
             ResolveReferences();
+            RefreshEntityControllerReferences();
 
             if (playerController != null && playerVisualPrefab != null)
             {
