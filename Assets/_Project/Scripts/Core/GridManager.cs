@@ -204,6 +204,12 @@ namespace RelicHunter.Core
                 visualBarricades[position] = visualObj;
             }
 
+            var ui = FindFirstObjectByType<RelicHunter.UI.UIManager>();
+            if (ui != null)
+            {
+                ui.UpdateBarricadeCount(activeBarricades.Count, maxBarricadesAllowed);
+            }
+
             return true;
         }
 

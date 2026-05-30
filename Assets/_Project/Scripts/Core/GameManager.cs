@@ -171,6 +171,13 @@ public class GameManager : MonoBehaviour
         if (guardController != null)
             guardController.SetGuardSpeed(round.guardSpeed);
 
+        if (RelicHunter.UI.UIManager.Instance != null)
+        {
+            RelicHunter.UI.UIManager.Instance.UpdateRoundInfo(round.roundName, round.gridWidth, round.gridHeight);
+            RelicHunter.UI.UIManager.Instance.UpdateScoreboard(playerWins, guardWins);
+            RelicHunter.UI.UIManager.Instance.UpdateBarricadeCount(0, round.maxBarricades);
+        }
+
         OnRoundStarted?.Invoke(currentRoundIndex, round);
 
         Debug.Log($"<color=orange><b>===================================================</b></color>");
@@ -269,6 +276,12 @@ public class GameManager : MonoBehaviour
                 turnManager.currentTurn = TurnManager.TurnState.Processing;
 
             bool playerMatchWinner = playerWins >= 2;
+            string absoluteWinner = playerMatchWinner ? "PLAYER (THIEF)" : "GUARD AI";
+
+            if (RelicHunter.UI.UIManager.Instance != null)
+            {
+                RelicHunter.UI.UIManager.Instance.DisplayMatchWinner(absoluteWinner);
+            }
 
             Debug.Log($"<color=cyan><b>===================================================</b></color>");
             Debug.Log($"<color=cyan><b>[MATCH OVER - FINAL SERIES WINNER]</b></color>");

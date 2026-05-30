@@ -24,6 +24,7 @@ namespace RelicHunter.Core
         private GridManager gridManager;
         private GuardController guardController;
         private GameManager gameManager;
+        private RelicHunter.UI.UIManager uiManager;
 
         private void Awake()
         {
@@ -43,6 +44,7 @@ namespace RelicHunter.Core
             if (gridManager == null) gridManager = FindFirstObjectByType<GridManager>();
             if (guardController == null) guardController = FindFirstObjectByType<GuardController>();
             if (gameManager == null) gameManager = FindFirstObjectByType<GameManager>();
+            if (uiManager == null) uiManager = FindFirstObjectByType<RelicHunter.UI.UIManager>();
         }
 
         public void EndPlayerTurn()
@@ -53,11 +55,18 @@ namespace RelicHunter.Core
 
             currentTurn = TurnState.Processing;
 
+            if (uiManager != null) uiManager.UpdateTurnNotice(currentTurn);
+
             if (CheckWinLossConditions()) return;
 
             try
             {
                 TickBarricades();
+
+                if (gridManager != null && uiManager != null)
+                {
+                    uiManager.UpdateBarricadeCount(gridManager.activeBarricades.Count, gridManager.maxBarricadesAllowed);
+                }
             }
             catch (System.Exception ex)
             {
@@ -65,6 +74,8 @@ namespace RelicHunter.Core
             }
 
             currentTurn = TurnState.GuardTurn;
+
+            if (uiManager != null) uiManager.UpdateTurnNotice(currentTurn);
 
             if (guardController != null)
             {
@@ -78,9 +89,13 @@ namespace RelicHunter.Core
 
         public void EndGuardTurn()
         {
+            ResolveReferences();
             if (currentTurn == TurnState.Processing) return;
 
             currentTurn = TurnState.PlayerTurn;
+
+            if (uiManager != null) uiManager.UpdateTurnNotice(currentTurn);
+
             Debug.Log("<color=yellow>TurnManager: System refreshed back to Player's Turn.</color>");
         }
 
@@ -127,6 +142,9 @@ namespace RelicHunter.Core
             {
                 currentTurn = TurnState.Processing;
                 Debug.Log("<color=red><b>[GAME OVER]</b> The Guard caught the player!</color>");
+
+                var ui = FindFirstObjectByType<RelicHunter.UI.UIManager>();
+                if (ui != null) ui.UpdateTurnNotice(currentTurn);
 
                 if (gameManager != null)
                 {
