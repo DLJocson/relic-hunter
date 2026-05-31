@@ -1,7 +1,3 @@
-// =============================================================================
-// UIManager.cs — Controls Panel States and dynamic TextMeshPro overlays
-// =============================================================================
-
 using UnityEngine;
 using UnityEngine.UI;
 using TMPro;
@@ -9,6 +5,9 @@ using RelicHunter.Core;
 
 namespace RelicHunter.UI
 {
+    /// <summary>
+    /// Main menu, HUD, round-start, and game-over UI state and text updates.
+    /// </summary>
     public class UIManager : MonoBehaviour
     {
         public static UIManager Instance { get; private set; }
@@ -559,10 +558,5 @@ namespace RelicHunter.UI
             }
         }
 
-        public void UpdateInstructions(string message)
-        {
-            if (instructionText != null)
-                instructionText.text = message;
-        }
     }
 }

@@ -197,6 +197,28 @@ TextureImporter:
       indices: 
       edges: []
       weights: []
+    - serializedVersion: 2
+      name: sokoban_spritesheet@2_1
+      rect:
+        serializedVersion: 2
+        x: 770
+        y: 46
+        width: 128
+        height: 122
+      alignment: 0
+      pivot: {x: 0, y: 0}
+      border: {x: 0, y: 0, z: 0, w: 0}
+      customData: 
+      outline: []
+      physicsShape: []
+      tessellationDetail: 0
+      bones: []
+      spriteID: 57c809682121daa4e9ed10fe8ad7bc19
+      internalID: 68751725
+      vertices: []
+      indices: 
+      edges: []
+      weights: []
     outline: []
     customData: 
     physicsShape: []
@@ -215,6 +237,7 @@ TextureImporter:
       Exit Tile: -604033647
       PlayerSprite: -970019561
       sokoban_spritesheet@2_0: -1695508788
+      sokoban_spritesheet@2_1: 68751725
   mipmapLimitGroupName: 
   pSDRemoveMatte: 0
   userData: 

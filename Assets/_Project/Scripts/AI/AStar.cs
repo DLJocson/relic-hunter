@@ -1,13 +1,12 @@
-// =============================================================================
-// AStar.cs — Unified structural routing & path safety evaluation component
-// =============================================================================
-
 using System;
 using System.Collections.Generic;
 using UnityEngine;
 using RelicHunter.Core;
 using RelicHunter.AI;
 
+/// <summary>
+/// A* pathfinding for grid traversal with guard leap support.
+/// </summary>
 public static class AStar
 {
     private static readonly Vector2Int[] CardinalDirs = {
@@ -15,8 +14,7 @@ public static class AStar
     };
 
     /// <summary>
-    /// Computes an optimal, complete point-to-point sequence of grid positions.
-    /// Safely wraps custom GridManager traversal constraints and handles exceptional Guard mechanics (Leaping).
+    /// Finds a shortest path respecting barricades, maze walls, and guard-specific leap rules.
     /// </summary>
     public static List<Vector2Int> FindPath(
         GridManager grid,
@@ -27,7 +25,9 @@ public static class AStar
     {
         List<Vector2Int> computedPath = new List<Vector2Int>();
 
-        if (grid == null) return computedPath;
+        if (grid == null)
+            return computedPath;
+
         if (startPos == targetPos)
         {
             computedPath.Add(startPos);
@@ -36,82 +36,67 @@ public static class AStar
 
         int width = grid.Width;
         int height = grid.Height;
+        int estimatedCapacity = Mathf.Max(16, Mathf.Min(width * height, 256));
 
-        // Bounded capacity allocation matrix to avoid garbage collection allocation cycles
-        int estimatedCapacity = Mathf.Min(width * height, 256);
-        SimplePriorityQueue<PathNode> openSet = new SimplePriorityQueue<PathNode>(estimatedCapacity);
-        Dictionary<Vector2Int, PathNode> allNodes = new Dictionary<Vector2Int, PathNode>(estimatedCapacity);
+        MinHeap openSet = new MinHeap(estimatedCapacity);
+        Dictionary<Vector2Int, Vector2Int> cameFrom = new Dictionary<Vector2Int, Vector2Int>(estimatedCapacity);
+        Dictionary<Vector2Int, int> bestGScore = new Dictionary<Vector2Int, int>(estimatedCapacity);
+        HashSet<Vector2Int> closedSet = new HashSet<Vector2Int>();
 
-        PathNode startNode = new PathNode(startPos)
-        {
-            GScore = 0,
-            HScore = Heuristics.GetManhattanDistance(startPos, targetPos)
-        };
+        int startH = Heuristics.GetManhattanDistance(startPos, targetPos);
+        bestGScore[startPos] = 0;
+        openSet.Push(new QueueEntry(startPos, 0, startH));
 
-        allNodes[startPos] = startNode;
-        openSet.Enqueue(startNode);
-
-        bool destinationReached = false;
         List<Vector2Int> adjacentBuffer = new List<Vector2Int>(4);
 
         while (openSet.Count > 0)
         {
-            PathNode current = openSet.Dequeue();
+            QueueEntry current = openSet.Pop();
+
+            if (closedSet.Contains(current.Position))
+                continue;
+
+            if (!bestGScore.TryGetValue(current.Position, out int knownBestG) || knownBestG != current.GScore)
+                continue;
 
             if (current.Position == targetPos)
             {
-                destinationReached = true;
-                break;
+                return ReconstructPath(cameFrom, startPos, targetPos);
             }
 
-            // Extract dynamic context neighbors using existing structural layout paths
+            closedSet.Add(current.Position);
+
             GetMovementNeighbors(grid, current.Position, isGuard, extraBlocked, adjacentBuffer);
 
             for (int i = 0; i < adjacentBuffer.Count; i++)
             {
                 Vector2Int neighborPos = adjacentBuffer[i];
-                
-                // Calculate actual path cost step changes (Leaps count as double steps but evaluate normally)
+
+                if (closedSet.Contains(neighborPos))
+                    continue;
+
                 int edgeCost = Heuristics.GetManhattanDistance(current.Position, neighborPos);
-                int tentativeGScore = current.GScore + edgeCost;
+                int tentativeGScore = current.GScore + Mathf.Max(1, edgeCost);
 
-                if (!allNodes.TryGetValue(neighborPos, out PathNode neighborNode))
+                if (bestGScore.TryGetValue(neighborPos, out int existingGScore) &&
+                    tentativeGScore >= existingGScore)
                 {
-                    neighborNode = new PathNode(neighborPos);
-                    allNodes[neighborPos] = neighborNode;
+                    continue;
                 }
 
-                if (tentativeGScore < neighborNode.GScore)
-                {
-                    neighborNode.Parent = current;
-                    neighborNode.GScore = tentativeGScore;
-                    neighborNode.HScore = Heuristics.GetManhattanDistance(neighborPos, targetPos);
+                cameFrom[neighborPos] = current.Position;
+                bestGScore[neighborPos] = tentativeGScore;
 
-                    if (!openSet.Contains(neighborNode))
-                    {
-                        openSet.Enqueue(neighborNode);
-                    }
-                }
+                int hScore = Heuristics.GetManhattanDistance(neighborPos, targetPos);
+                openSet.Push(new QueueEntry(neighborPos, tentativeGScore, hScore));
             }
-        }
-
-        if (destinationReached)
-        {
-            // Unwind parent nodes backwards into an ordered sequence
-            PathNode trace = allNodes[targetPos];
-            while (trace != null)
-            {
-                computedPath.Add(trace.Position);
-                trace = trace.Parent;
-            }
-            computedPath.Reverse();
         }
 
         return computedPath;
     }
 
     /// <summary>
-    /// Interface compliance fallback for GridManager path presence analysis calls.
+    /// Checks whether a path exists between two cells.
     /// </summary>
     public static bool PathExists(
         GridManager grid,
@@ -125,7 +110,7 @@ public static class AStar
     }
 
     /// <summary>
-    /// Intercepts valid step configurations by combining regular card paths with custom Guard jumping matrices.
+    /// Builds valid neighboring positions for either guard or regular traversal.
     /// </summary>
     private static void GetMovementNeighbors(
         GridManager grid,
@@ -141,18 +126,20 @@ public static class AStar
             Vector2Int dir = CardinalDirs[i];
             Vector2Int adjacent = from + dir;
 
-            // Handle special Guard Leap actions over exit locations
+            // Guard leap over the exit tile.
             if (isGuard && adjacent == grid.exitPos)
             {
                 Vector2Int jumpTo = from + dir * 2;
-                if ((extraBlocked == null || !extraBlocked.Contains(jumpTo)) && grid.CanGuardLeapTo(from, jumpTo))
+
+                if ((extraBlocked == null || !extraBlocked.Contains(jumpTo)) &&
+                    grid.CanGuardLeapTo(from, jumpTo))
                 {
                     neighbors.Add(jumpTo);
                 }
+
                 continue;
             }
 
-            // Normal step evaluation logic
             if (extraBlocked != null && extraBlocked.Contains(adjacent))
                 continue;
 
@@ -163,50 +150,85 @@ public static class AStar
         }
     }
 
+    private static List<Vector2Int> ReconstructPath(
+        Dictionary<Vector2Int, Vector2Int> cameFrom,
+        Vector2Int startPos,
+        Vector2Int targetPos)
+    {
+        List<Vector2Int> path = new List<Vector2Int>();
+
+        Vector2Int current = targetPos;
+        path.Add(current);
+
+        while (current != startPos && cameFrom.TryGetValue(current, out Vector2Int parent))
+        {
+            current = parent;
+            path.Add(current);
+        }
+
+        path.Reverse();
+        return path;
+    }
+
+    private struct QueueEntry
+    {
+        public Vector2Int Position;
+        public int GScore;
+        public int HScore;
+
+        public int FScore => GScore + HScore;
+
+        public QueueEntry(Vector2Int position, int gScore, int hScore)
+        {
+            Position = position;
+            GScore = gScore;
+            HScore = hScore;
+        }
+    }
+
     // =========================================================================
     // HIGH-PERFORMANCE PRIORITY QUEUE (GC-OPTIMIZED MIN-HEAP)
     // =========================================================================
-    private sealed class SimplePriorityQueue<T> where T : IComparable<T>
+    private sealed class MinHeap
     {
-        private T[] _items;
+        private QueueEntry[] _items;
         private int _size;
-        private readonly HashSet<T> _set;
 
         public int Count => _size;
 
-        public SimplePriorityQueue(int capacity)
+        public MinHeap(int capacity)
         {
-            _items = new T[capacity];
+            _items = new QueueEntry[Math.Max(4, capacity)];
             _size = 0;
-            _set = new HashSet<T>();
         }
 
-        public bool Contains(T item) => _set.Contains(item);
-
-        public void Enqueue(T item)
+        public void Push(QueueEntry item)
         {
             if (_size == _items.Length)
             {
                 Array.Resize(ref _items, _items.Length * 2);
             }
+
             _items[_size] = item;
-            _set.Add(item);
             BubbleUp(_size);
             _size++;
         }
 
-        public T Dequeue()
+        public QueueEntry Pop()
         {
-            if (_size == 0) throw new InvalidOperationException("Queue is empty.");
-            T head = _items[0];
+            if (_size == 0)
+                throw new InvalidOperationException("Heap is empty.");
+
+            QueueEntry head = _items[0];
             _size--;
+
             if (_size > 0)
             {
                 _items[0] = _items[_size];
-                TrickleDown(0);
+                BubbleDown(0);
             }
+
             _items[_size] = default;
-            _set.Remove(head);
             return head;
         }
 
@@ -215,25 +237,52 @@ public static class AStar
             while (index > 0)
             {
                 int parent = (index - 1) >> 1;
-                if (_items[index].CompareTo(_items[parent]) >= 0) break;
-                T swap = _items[index]; _items[index] = _items[parent]; _items[parent] = swap;
+                if (!IsBetter(_items[index], _items[parent]))
+                    break;
+
+                Swap(index, parent);
                 index = parent;
             }
         }
 
-        private void TrickleDown(int index)
+        private void BubbleDown(int index)
         {
-            int middle = _size >> 1;
-            while (index < middle)
+            while (true)
             {
                 int left = (index << 1) + 1;
                 int right = left + 1;
-                int best = left;
-                if (right < _size && _items[right].CompareTo(_items[left]) < 0) best = right;
-                if (_items[index].CompareTo(_items[best]) <= 0) break;
-                T swap = _items[index]; _items[index] = _items[best]; _items[best] = swap;
+                int best = index;
+
+                if (left < _size && IsBetter(_items[left], _items[best]))
+                    best = left;
+
+                if (right < _size && IsBetter(_items[right], _items[best]))
+                    best = right;
+
+                if (best == index)
+                    break;
+
+                Swap(index, best);
                 index = best;
             }
+        }
+
+        private static bool IsBetter(QueueEntry a, QueueEntry b)
+        {
+            if (a.FScore != b.FScore)
+                return a.FScore < b.FScore;
+
+            if (a.HScore != b.HScore)
+                return a.HScore < b.HScore;
+
+            return a.GScore < b.GScore;
+        }
+
+        private void Swap(int a, int b)
+        {
+            QueueEntry temp = _items[a];
+            _items[a] = _items[b];
+            _items[b] = temp;
         }
     }
 }

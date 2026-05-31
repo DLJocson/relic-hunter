@@ -1,7 +1,3 @@
-// =============================================================================
-// MazeGridBridge.cs — Syncs procedural maze visuals with Relic Hunter grid logic.
-// =============================================================================
-
 using System;
 using UnityEngine;
 using RelicHunter.Maze;
@@ -10,6 +6,9 @@ using RelicHunter.Enemy;
 
 namespace RelicHunter.Core
 {
+    /// <summary>
+    /// Syncs procedural maze generation with grid logic, exit visuals, and entity presentation.
+    /// </summary>
     public class MazeGridBridge : MonoBehaviour
     {
         public static MazeGridBridge Instance { get; private set; }
@@ -40,6 +39,9 @@ namespace RelicHunter.Core
             ResolveReferences();
         }
 
+        /// <summary>
+        /// Generates a maze for the round, then applies dimensions, exit, and entity visuals to the grid.
+        /// </summary>
         public void BeginRound(GameManager.RoundDefinition round, int seed, Action onComplete)
         {
             ResolveReferences();
@@ -72,6 +74,7 @@ namespace RelicHunter.Core
             gridManager.UpdateGridDimensions(round.gridWidth, round.gridHeight);
             gridManager.exitPos = generateMaze.ExitCell;
             gridManager.guardPos = generateMaze.GuardCell;
+            gridManager.playerPos = generateMaze.PlayerSpawnCell;
             gridManager.ClearAllBarricades();
 
             CleanupStrayExitMarkers();
@@ -133,7 +136,8 @@ namespace RelicHunter.Core
             if (gridManager != null && gridManager.exitPrefab != null)
                 return gridManager.exitPrefab;
 
-            return Resources.Load<GameObject>("Prefabs/Exit Tile");
+            Debug.LogWarning("[MazeGridBridge] Exit prefab is not assigned on MazeGridBridge or GridManager.");
+            return null;
         }
 
         public void RefreshEntityControllerReferences()
@@ -237,29 +241,18 @@ namespace RelicHunter.Core
 
         private void SetRoundEntitiesVisible(bool visible)
         {
-            if (!visible)
-            {
-                if (playerVisualInstance != null)
-                    playerVisualInstance.SetActive(false);
-                if (guardVisualInstance != null)
-                    guardVisualInstance.SetActive(false);
-
-                if (playerController != null)
-                    SetPlaceholderRenderersVisible(playerController.gameObject, false);
-                if (guardController != null)
-                    SetPlaceholderRenderersVisible(guardController.gameObject, false);
+            if (visible)
                 return;
-            }
 
             if (playerVisualInstance != null)
-                playerVisualInstance.SetActive(true);
-            else if (playerController != null)
-                SetPlaceholderRenderersVisible(playerController.gameObject, true);
-
+                playerVisualInstance.SetActive(false);
             if (guardVisualInstance != null)
-                guardVisualInstance.SetActive(true);
-            else if (guardController != null)
-                SetPlaceholderRenderersVisible(guardController.gameObject, true);
+                guardVisualInstance.SetActive(false);
+
+            if (playerController != null)
+                SetPlaceholderRenderersVisible(playerController.gameObject, false);
+            if (guardController != null)
+                SetPlaceholderRenderersVisible(guardController.gameObject, false);
         }
 
         private static void SetPlaceholderRenderersVisible(GameObject root, bool visible)

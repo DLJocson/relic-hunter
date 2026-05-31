@@ -1680,8 +1680,8 @@ MonoBehaviour:
   guardController: {fileID: 0}
   mazeGridBridge: {fileID: 2100000003}
   roundFeedback: {fileID: 0}
-  playerPrefab: {fileID: 0}
-  guardPrefab: {fileID: 0}
+  playerPrefab: {fileID: 5829471036842157391, guid: d7a1b2c3e4f5061728394a5b6c7d8e9f, type: 3}
+  guardPrefab: {fileID: 7488274205739122568, guid: e8b2c3d4f5a6172839405b6c7d8e9f0a, type: 3}
   rounds:
   - roundName: Round 1 (Easy)
     gridWidth: 9
@@ -2367,8 +2367,8 @@ MonoBehaviour:
   exitPrefab: {fileID: 2026216443881427459, guid: 3ecd78b78361fa542a98359bff7e92b2, type: 3}
   gridVisualParent: {fileID: 309917373}
   mazeBridge: {fileID: 2100000003}
-  playerPrefab: {fileID: 0}
-  guardPrefab: {fileID: 0}
+  playerPrefab: {fileID: 5829471036842157391, guid: d7a1b2c3e4f5061728394a5b6c7d8e9f, type: 3}
+  guardPrefab: {fileID: 7488274205739122568, guid: e8b2c3d4f5a6172839405b6c7d8e9f0a, type: 3}
   playerController: {fileID: 0}
   guardController: {fileID: 0}
   maxBarricadesAllowed: 3
@@ -2484,7 +2484,7 @@ GameObject:
   m_Icon: {fileID: 0}
   m_NavMeshLayer: 0
   m_StaticEditorFlags: 0
-  m_IsActive: 0
+  m_IsActive: 1
 --- !u!224 &1904338628
 RectTransform:
   m_ObjectHideFlags: 0
@@ -2501,7 +2501,7 @@ RectTransform:
   m_LocalEulerAnglesHint: {x: 0, y: 0, z: 0}
   m_AnchorMin: {x: 0, y: 0}
   m_AnchorMax: {x: 0, y: 0}
-  m_AnchoredPosition: {x: 1062.1, y: 488.11}
+  m_AnchoredPosition: {x: 1100.7, y: 470.95}
   m_SizeDelta: {x: 502, y: 165}
   m_Pivot: {x: 0.5, y: 0.5}
 --- !u!114 &1904338629

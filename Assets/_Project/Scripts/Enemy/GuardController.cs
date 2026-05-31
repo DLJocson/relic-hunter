@@ -7,7 +7,7 @@ namespace RelicHunter.Enemy
 {
     /// <summary>
     /// Controls execution steps, processing loops, and spatial tracking for Guard agents.
-    /// Integrates Minimax decisions with an optimization-validated A* backup path pipeline.
+    /// Integrates Minimax decisions with an optimization-validated A* path pipeline.
     /// </summary>
     public class GuardController : MonoBehaviour
     {
@@ -95,14 +95,30 @@ namespace RelicHunter.Enemy
                 return true;
             }
 
-            // Attempt Minimax search vector calculation
-            Vector2Int nextStep = DetermineBestGuardMove(thiefPos);
+            Vector2Int strategicTarget = DetermineBestGuardMove(thiefPos);
+            Vector2Int nextStep = CurrentGridPos;
 
-            // Hybrid Search Pipeline Intercept:
-            // Fall back immediately to global multi-step A* if Minimax fails, stalls, or traps out.
-            if (nextStep == CurrentGridPos || nextStep == Minimax.TRAPPED)
+            // Primary execution path: use A* to follow the Minimax-selected target.
+            if (strategicTarget != Minimax.TRAPPED && strategicTarget != CurrentGridPos)
             {
-                List<Vector2Int> clearPath = AStar.FindPath(
+                List<Vector2Int> plannedPath = AStar.FindPath(
+                    gridManager,
+                    CurrentGridPos,
+                    strategicTarget,
+                    isGuard: true,
+                    extraBlocked: null
+                );
+
+                if (plannedPath != null && plannedPath.Count > 1)
+                {
+                    nextStep = plannedPath[1];
+                }
+            }
+
+            // Fallback: if the strategic target is not reachable, pursue the thief directly.
+            if (nextStep == CurrentGridPos)
+            {
+                List<Vector2Int> fallbackPath = AStar.FindPath(
                     gridManager,
                     CurrentGridPos,
                     thiefPos,
@@ -110,21 +126,16 @@ namespace RelicHunter.Enemy
                     extraBlocked: null
                 );
 
-                // If path exists, select the step immediately following our current node
-                if (clearPath != null && clearPath.Count > 1)
+                if (fallbackPath != null && fallbackPath.Count > 1)
                 {
-                    nextStep = clearPath[1];
-                }
-                else
-                {
-                    nextStep = CurrentGridPos; // Structural fallback if completely blocked
+                    nextStep = fallbackPath[1];
                 }
             }
 
-            // Engine constraint safety validation prior to simulation integration
             if (!CanStep(CurrentGridPos, nextStep))
             {
-                Debug.LogWarning($"[GuardController] Aborted illegal physical structural move to grid coordinates: {nextStep}. Locking transform state.");
+                Debug.LogWarning(
+                    $"[GuardController] Aborted illegal physical structural move to grid coordinates: {nextStep}. Locking transform state.");
                 nextStep = CurrentGridPos;
             }
 
@@ -133,7 +144,7 @@ namespace RelicHunter.Enemy
             if (turnManager != null)
             {
                 bool gameEnded = turnManager.CheckWinLossConditions();
-                if (gameEnded) 
+                if (gameEnded)
                 {
                     return false;
                 }
@@ -166,7 +177,9 @@ namespace RelicHunter.Enemy
                 maxDepth,
                 gridManager.barricadeDuration,
                 gridManager.maxBarricadesAllowed,
-                (from, to) => CanTraverseForAi(from, to)
+                canGuardMoveBetween: CanTraverseForGuardAi,
+                canThiefMoveBetween: CanTraverseForThiefAi,
+                canGuardLeapTo: CanGuardLeapForAi
             );
 
             return bestStep;
@@ -174,16 +187,18 @@ namespace RelicHunter.Enemy
 
         private bool CanStep(Vector2Int from, Vector2Int to)
         {
-            if (gridManager == null) 
+            if (gridManager == null)
             {
                 return false;
             }
 
             int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+
             if (manhattan == 2)
             {
                 return gridManager.CanGuardLeapTo(from, to);
             }
+
             if (manhattan == 1)
             {
                 return gridManager.CanEnterCell(from, to, isGuard: true);
@@ -192,24 +207,53 @@ namespace RelicHunter.Enemy
             return false;
         }
 
-        private bool CanTraverseForAi(Vector2Int from, Vector2Int to)
+        private bool CanTraverseForGuardAi(Vector2Int from, Vector2Int to)
         {
-            if (gridManager == null) 
+            if (gridManager == null)
             {
                 return false;
             }
 
             int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+
             if (manhattan == 2)
             {
                 return gridManager.CanGuardLeapTo(from, to);
             }
+
             if (manhattan == 1)
             {
-                return gridManager.CanEnterCell(from, to, isGuard: false);
+                return gridManager.CanEnterCell(from, to, isGuard: true);
             }
 
             return false;
+        }
+
+        private bool CanTraverseForThiefAi(Vector2Int from, Vector2Int to)
+        {
+            if (gridManager == null)
+            {
+                return false;
+            }
+
+            int manhattan = Mathf.Abs(to.x - from.x) + Mathf.Abs(to.y - from.y);
+
+            if (manhattan != 1)
+            {
+                return false;
+            }
+
+            return gridManager.CanEnterCell(from, to, isGuard: false);
+        }
+
+        private bool CanGuardLeapForAi(Vector2Int from, Vector2Int to)
+        {
+            if (gridManager == null)
+            {
+                return false;
+            }
+
+            return gridManager.CanGuardLeapTo(from, to);
         }
 
         private void ApplyGuardPosition(Vector2Int gridPos)
@@ -253,17 +297,23 @@ namespace RelicHunter.Enemy
         {
             if (gridManager == null)
             {
-                gridManager = GridManager.Instance != null ? GridManager.Instance : FindFirstObjectByType<GridManager>();
+                gridManager = GridManager.Instance != null
+                    ? GridManager.Instance
+                    : FindFirstObjectByType<GridManager>();
             }
 
             if (turnManager == null)
             {
-                turnManager = TurnManager.Instance != null ? TurnManager.Instance : FindFirstObjectByType<TurnManager>();
+                turnManager = TurnManager.Instance != null
+                    ? TurnManager.Instance
+                    : FindFirstObjectByType<TurnManager>();
             }
 
             if (mazeBridge == null)
             {
-                mazeBridge = MazeGridBridge.Instance != null ? MazeGridBridge.Instance : FindFirstObjectByType<MazeGridBridge>();
+                mazeBridge = MazeGridBridge.Instance != null
+                    ? MazeGridBridge.Instance
+                    : FindFirstObjectByType<MazeGridBridge>();
             }
         }
 

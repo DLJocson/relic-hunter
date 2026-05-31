@@ -1,7 +1,3 @@
-// =============================================================================
-// GameManager.cs — Handles game mechanics
-// =============================================================================
-
 using System;
 using System.Collections;
 using UnityEngine;
@@ -9,6 +5,9 @@ using RelicHunter.Core;
 using RelicHunter.Player;
 using RelicHunter.Enemy;
 
+/// <summary>
+/// Match and round lifecycle: scoring, maze generation handoff, and game-over flow.
+/// </summary>
 public class GameManager : MonoBehaviour
 {
     public static GameManager Instance { get; private set; }
@@ -127,12 +126,9 @@ public class GameManager : MonoBehaviour
         };
     }
 
-    [Obsolete("Use StartGameSequence() so the main menu and round-start UI run first.")]
-    public void StartMatch()
-    {
-        StartGameSequence();
-    }
-
+    /// <summary>
+    /// Begins a new match from the main menu (round-start UI, then maze generation).
+    /// </summary>
     public void StartGameSequence()
     {
         ResolveSceneReferences();
@@ -345,9 +341,9 @@ public class GameManager : MonoBehaviour
 
         if (playerController != null)
         {
-            playerController.gridPosition = new Vector2Int(0, 0);
+            Vector2Int playerStart = gridManager.playerPos;
+            playerController.gridPosition = playerStart;
             playerController.SnapTransformToGrid();
-            gridManager.playerPos = new Vector2Int(0, 0);
         }
 
         Vector2Int guardStart = gridManager.guardPos;
@@ -396,7 +392,6 @@ public class GameManager : MonoBehaviour
                 turnManager.currentTurn = TurnManager.TurnState.Processing;
 
             bool playerMatchWinner = playerWins >= 2;
-            string absoluteWinner = playerMatchWinner ? "PLAYER (THIEF)" : "GUARD AI";
 
             if (RelicHunter.UI.UIManager.Instance != null)
             {

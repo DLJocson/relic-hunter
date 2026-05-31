@@ -5,11 +5,13 @@ using UnityEngine;
 
 namespace RelicHunter.Maze
 {
+    /// <summary>
+    /// Procedural maze generation, exit/guard placement, and grid-to-world mapping.
+    /// </summary>
     public class GenerateMaze : MonoBehaviour
     {
+        /// <summary>Maze size tier used for generation rules and camera framing.</summary>
         public enum Difficulty { Easy, Medium, Hard }
-        private static readonly Vector2Int PlayerSpawnCell = new Vector2Int(0, 0);
-        private const float ExitTopPercent = 0.10f;
         private const float GuardTopPercent = 0.20f;
         private const int GuardDistanceRelaxationAttemptLimit = 25;
 
@@ -19,6 +21,7 @@ namespace RelicHunter.Maze
         [SerializeField] bool autoGenerateOnStart = false;
         [SerializeField] bool allowDebugRegenerate = false;
 
+        public Vector2Int PlayerSpawnCell { get; private set; } = new Vector2Int(-1, -1);
         public Vector2Int ExitCell { get; private set; } = new Vector2Int(-1, -1);
         public Vector2Int GuardCell { get; private set; } = new Vector2Int(-1, -1);
         public Room.Directions ExitOpeningDirection { get; private set; }
@@ -31,6 +34,7 @@ namespace RelicHunter.Maze
         Room[,] rooms = null;
         int numX, numY;
         float roomWidth, roomHeight;
+        private float currentLoopDensity;
         Stack<Room> stack = new Stack<Room>();
         bool generating = false;
 
@@ -63,6 +67,7 @@ namespace RelicHunter.Maze
             if (numX >= 15 || numY >= 15) currentDifficulty = Difficulty.Hard;
             else if (numX >= 12 || numY >= 12) currentDifficulty = Difficulty.Medium;
             else currentDifficulty = Difficulty.Easy;
+            ApplyLoopDensityForDifficulty();
         }
 
         private void GetRoomSize()
@@ -86,6 +91,26 @@ namespace RelicHunter.Maze
                 case Difficulty.Easy: numX = 9; numY = 9; break;
                 case Difficulty.Medium: numX = 12; numY = 12; break;
                 case Difficulty.Hard: numX = 15; numY = 15; break;
+            }
+            ApplyLoopDensityForDifficulty();
+        }
+
+        private void ApplyLoopDensityForDifficulty()
+        {
+            switch (currentDifficulty)
+            {
+                case Difficulty.Easy:
+                    currentLoopDensity = 0.25f;
+                    break;
+                case Difficulty.Medium:
+                    currentLoopDensity = 0.10f;
+                    break;
+                case Difficulty.Hard:
+                    currentLoopDensity = 0.03f;
+                    break;
+                default:
+                    currentLoopDensity = 0.10f;
+                    break;
             }
         }
 
@@ -255,8 +280,7 @@ namespace RelicHunter.Maze
             generating = true;
             while (!GenerateStep()) yield return null;
 
-
-            int extraConnections = (numX * numY) / 2;
+            int extraConnections = Mathf.RoundToInt(numX * numY * currentLoopDensity);
             for (int i = 0; i < extraConnections; i++)
             {
                 int x = UnityEngine.Random.Range(1, numX - 1);
@@ -264,30 +288,37 @@ namespace RelicHunter.Maze
                 RemoveRoomWall(x, y, (Room.Directions)UnityEngine.Random.Range(0, 4));
             }
 
-
-            for (int i = 0; i < 3; i++)
-            {
-                int rx = UnityEngine.Random.Range(1, numX - 2);
-                int ry = UnityEngine.Random.Range(1, numY - 2);
-                for (int x = rx; x <= rx + 1; x++)
-                {
-                    for (int y = ry; y <= ry + 1; y++)
-                    {
-                        rooms[x, y].SetDirFlag(Room.Directions.TOP, false);
-                        rooms[x, y].SetDirFlag(Room.Directions.RIGHT, false);
-                        rooms[x, y].SetDirFlag(Room.Directions.BOTTOM, false);
-                        rooms[x, y].SetDirFlag(Room.Directions.LEFT, false);
-                    }
-                }
-            }
-
-
             EnsureMazeFullySafe();
+            PickPlayerSpawnCell();
             SelectProceduralSpawns();
             HideFloorGridSeams();
 
             generating = false;
             OnGenerationComplete?.Invoke();
+        }
+
+        private void PickPlayerSpawnCell()
+        {
+            List<Vector2Int> deadEnds = new List<Vector2Int>();
+
+            for (int x = 0; x < numX; x++)
+            {
+                for (int y = 0; y < numY; y++)
+                {
+                    if (CountOpenExits(x, y) == 1)
+                        deadEnds.Add(new Vector2Int(x, y));
+                }
+            }
+
+            if (deadEnds.Count > 0)
+            {
+                PlayerSpawnCell = deadEnds[UnityEngine.Random.Range(0, deadEnds.Count)];
+                return;
+            }
+
+            PlayerSpawnCell = new Vector2Int(
+                UnityEngine.Random.Range(0, numX),
+                UnityEngine.Random.Range(0, numY));
         }
 
         private void SelectProceduralSpawns()
@@ -374,25 +405,6 @@ namespace RelicHunter.Maze
             return result;
         }
 
-        private Vector2Int PickRandomFromTopPercent(List<DistanceCell> sortedCells, float topPercent, Vector2Int? excludedCell)
-        {
-            if (sortedCells == null || sortedCells.Count == 0)
-                return PlayerSpawnCell;
-
-            int subsetCount = Mathf.Max(1, Mathf.CeilToInt(sortedCells.Count * topPercent));
-            int startIndex = 0;
-            int endIndex = Mathf.Min(sortedCells.Count, subsetCount);
-            List<Vector2Int> candidates = CollectCandidateSlice(sortedCells, startIndex, endIndex, excludedCell);
-
-            if (candidates.Count == 0)
-                candidates = CollectCandidateSlice(sortedCells, 0, sortedCells.Count, excludedCell);
-
-            if (candidates.Count == 0)
-                return PlayerSpawnCell;
-
-            return candidates[UnityEngine.Random.Range(0, candidates.Count)];
-        }
-
         private Vector2Int PickExitCell(List<DistanceCell> sortedCells)
         {
             if (sortedCells == null || sortedCells.Count == 0)
@@ -416,15 +428,6 @@ namespace RelicHunter.Maze
             }
 
             return GetBestNonPlayerCell(PlayerSpawnCell);
-        }
-
-        private Vector2Int PickFallbackDistinctCell(List<DistanceCell> sortedCells, Vector2Int excludedCell)
-        {
-            List<Vector2Int> fallback = CollectCandidateSlice(sortedCells, 0, sortedCells.Count, excludedCell);
-            if (fallback.Count > 0)
-                return fallback[UnityEngine.Random.Range(0, fallback.Count)];
-
-            return GetBestNonPlayerCell(excludedCell);
         }
 
         private Vector2Int PickGuardCell(List<DistanceCell> sortedCells, Vector2Int exitCell)
@@ -601,11 +604,6 @@ namespace RelicHunter.Maze
         private bool IsInsideGrid(Vector2Int cell)
         {
             return cell.x >= 0 && cell.x < numX && cell.y >= 0 && cell.y < numY;
-        }
-
-        private static int ManhattanDistance(Vector2Int a, Vector2Int b)
-        {
-            return Mathf.Abs(a.x - b.x) + Mathf.Abs(a.y - b.y);
         }
 
         private struct DistanceCell
@@ -884,42 +882,6 @@ namespace RelicHunter.Maze
             return visited;
         }
 
-        private bool WouldRemainConnectedIfWallStateChanged(int x, int y, Room.Directions dir, bool active)
-        {
-            int nx, ny;
-            if (!TryGetNeighbor(x, y, dir, out nx, out ny)) return false;
-
-            bool originalHere = rooms[x, y].IsWallActive(dir);
-            Room.Directions opposite = GetOppositeDirection(dir);
-            bool originalThere = rooms[nx, ny].IsWallActive(opposite);
-
-            SetWallState(x, y, dir, active);
-            bool connected = IsMazeConnected();
-            SetWallState(x, y, dir, originalHere);
-            SetWallState(nx, ny, opposite, originalThere);
-
-            return connected;
-        }
-
-        private bool WouldKeepRequiredOpenExitsIfWallStateChanged(int x, int y, Room.Directions dir, bool active)
-        {
-            int nx, ny;
-            if (!TryGetNeighbor(x, y, dir, out nx, out ny)) return false;
-
-            bool originalHere = rooms[x, y].IsWallActive(dir);
-            Room.Directions opposite = GetOppositeDirection(dir);
-            bool originalThere = rooms[nx, ny].IsWallActive(opposite);
-
-            SetWallState(x, y, dir, active);
-
-            bool safe = HasRequiredOpenExits(x, y) && HasRequiredOpenExits(nx, ny);
-
-            SetWallState(x, y, dir, originalHere);
-            SetWallState(nx, ny, opposite, originalThere);
-
-            return safe;
-        }
-
         private bool EnsureMinimumOpenExits()
         {
             bool changed = false;
@@ -1023,12 +985,6 @@ namespace RelicHunter.Maze
             if (rooms == null) return false;
             if (x < 0 || x >= numX || y < 0 || y >= numY) return false;
             return dir == Room.Directions.TOP || dir == Room.Directions.RIGHT || dir == Room.Directions.BOTTOM || dir == Room.Directions.LEFT;
-        }
-
-        private bool IsSpecialOpening(int x, int y, Room.Directions dir)
-        {
-            return (x == 0 && y == 0 && dir == Room.Directions.BOTTOM)
-                || IsExitOpening(x, y, dir);
         }
 
         private bool TryGetNeighbor(int x, int y, Room.Directions dir, out int nx, out int ny)

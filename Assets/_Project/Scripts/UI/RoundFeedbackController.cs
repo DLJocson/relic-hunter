@@ -1,11 +1,10 @@
-// =============================================================================
-// RoundFeedbackController.cs — Player sprites and round/match audio feedback.
-// =============================================================================
-
 using UnityEngine;
 using RelicHunter.Core;
 using RelicHunter.Maze;
 
+/// <summary>
+/// Round and match audio feedback plus player status sprite hooks.
+/// </summary>
 public class RoundFeedbackController : MonoBehaviour
 {
     [SerializeField] private PlayerStatus playerStatus;

@@ -1,12 +1,11 @@
-// =============================================================================
-// PlayerController.cs — Handles player input and character grid-movement.
-// =============================================================================
-
 using UnityEngine;
 using RelicHunter.Core;
 
 namespace RelicHunter.Player
 {
+    /// <summary>
+    /// Player input, grid movement, and barricade placement on the active maze.
+    /// </summary>
     public class PlayerController : MonoBehaviour
     {
         [Header("Grid Setup")]

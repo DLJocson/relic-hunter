@@ -1,15 +1,13 @@
-// =============================================================================
-// GridManager.cs — Grid logic and barricades (procedural maze visuals via MazeGridBridge).
-// =============================================================================
-
 using System.Collections.Generic;
-using RelicHunter.AI;
 using RelicHunter.Enemy;
 using RelicHunter.Player;
 using UnityEngine;
 
 namespace RelicHunter.Core
 {
+    /// <summary>
+    /// Grid logic, barricades, and round entity spawning; maze visuals come from <see cref="MazeGridBridge"/>.
+    /// </summary>
     [DefaultExecutionOrder(-100)]
     public class GridManager : MonoBehaviour
     {
@@ -144,6 +142,9 @@ namespace RelicHunter.Core
             guardController = null;
         }
 
+        /// <summary>
+        /// Instantiates player and guard prefabs at round spawn positions.
+        /// </summary>
         public void SpawnRoundEntities()
         {
             DestroyRoundEntities();
@@ -173,7 +174,10 @@ namespace RelicHunter.Core
                 return;
             }
 
-            Vector2Int playerStart = Vector2Int.zero;
+            Vector2Int playerStart = playerPos;
+            if (playerStart.x < 0 || playerStart.x >= width || playerStart.y < 0 || playerStart.y >= height)
+                playerStart = Vector2Int.zero;
+
             Vector2Int guardStart = guardPos;
             if (guardStart.x < 0 || guardStart.x >= width || guardStart.y < 0 || guardStart.y >= height)
                 guardStart = new Vector2Int(width - 1, height - 1);
@@ -193,26 +197,16 @@ namespace RelicHunter.Core
 
         private GameObject ResolvePlayerPrefab()
         {
-            if (playerPrefab != null)
-                return playerPrefab;
-
-            GameObject loaded = Resources.Load<GameObject>("Prefabs/Player");
-            if (loaded != null)
-                return loaded;
-
-            return Resources.Load<GameObject>("Prefabs/PlayerPrefab");
+            if (playerPrefab == null)
+                Debug.LogWarning("[GridManager] Player prefab is not assigned on GridManager.");
+            return playerPrefab;
         }
 
         private GameObject ResolveGuardPrefab()
         {
-            if (guardPrefab != null)
-                return guardPrefab;
-
-            GameObject loaded = Resources.Load<GameObject>("Prefabs/Guard");
-            if (loaded != null)
-                return loaded;
-
-            return Resources.Load<GameObject>("Prefabs/GuardPrefab");
+            if (guardPrefab == null)
+                Debug.LogWarning("[GridManager] Guard prefab is not assigned on GridManager.");
+            return guardPrefab;
         }
 
         private void SetRoundEntityVisibility(bool visible)
@@ -335,31 +329,6 @@ namespace RelicHunter.Core
             return CanEnterCell(overExit, to, isGuard: true);
         }
 
-        public void CollectGuardNeighborCells(Vector2Int from, List<Vector2Int> neighbors)
-        {
-            neighbors.Clear();
-
-            foreach (Vector2Int dir in CardinalDirections)
-            {
-                Vector2Int adjacent = from + dir;
-
-                if (adjacent == exitPos)
-                {
-                    Vector2Int jumpTo = from + dir * 2;
-                    if (CanGuardLeapTo(from, jumpTo))
-                        neighbors.Add(jumpTo);
-                    continue;
-                }
-
-                if (CanEnterCell(from, adjacent, isGuard: true))
-                    neighbors.Add(adjacent);
-            }
-        }
-
-        private static readonly Vector2Int[] CardinalDirections = {
-            Vector2Int.up, Vector2Int.down, Vector2Int.left, Vector2Int.right
-        };
-
         public bool TryPlaceBarricade(Vector2Int position, out bool wouldTrapPlayer)
         {
             wouldTrapPlayer = false;
@@ -426,13 +395,9 @@ namespace RelicHunter.Core
 
         private GameObject ResolveBarricadePrefab()
         {
-            if (mazeBarricadePrefab != null) return mazeBarricadePrefab;
-
-            GameObject loaded = Resources.Load<GameObject>("Prefabs/Barricade");
-            if (loaded != null) return loaded;
-
-            Debug.LogWarning("[GridManager] No barricade prefab assigned.");
-            return null;
+            if (mazeBarricadePrefab == null)
+                Debug.LogWarning("[GridManager] Maze barricade prefab is not assigned on GridManager.");
+            return mazeBarricadePrefab;
         }
 
         private static void ConfigureBarricadeVisual(GameObject visualObj)

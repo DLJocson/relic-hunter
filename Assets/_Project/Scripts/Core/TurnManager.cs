@@ -1,7 +1,3 @@
-// =============================================================================
-// TurnManager.cs — Handles player and guard turn-taking
-// =============================================================================
-
 using UnityEngine;
 using System.Collections.Generic;
 using RelicHunter.Enemy;
@@ -9,6 +5,9 @@ using RelicHunter.Player;
 
 namespace RelicHunter.Core
 {
+    /// <summary>
+    /// Alternates player and guard turns and coordinates barricade decay.
+    /// </summary>
     public class TurnManager : MonoBehaviour
     {
         public static TurnManager Instance { get; private set; }
