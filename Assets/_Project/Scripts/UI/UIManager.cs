@@ -225,12 +225,6 @@ namespace RelicHunter.UI
                     backdrop.sprite = null;
                     backdrop.color = new Color32(92, 68, 33, 255);
                 }
-
-                RectTransform patchRect = imageTransform as RectTransform;
-                patchRect.anchorMin = Vector2.zero;
-                patchRect.anchorMax = Vector2.one;
-                patchRect.offsetMin = new Vector2(-2f, -2f);
-                patchRect.offsetMax = new Vector2(2f, 2f);
             }
 
             container.gameObject.SetActive(true);
@@ -243,11 +237,6 @@ namespace RelicHunter.UI
                 textComponent.font = sourceFont;
                 textComponent.fontSharedMaterial = sourceMaterial;
             }
-            textComponent.fontSize = 42f;
-            textComponent.fontStyle = FontStyles.Bold;
-            textComponent.color = new Color32(255, 215, 0, 255);
-            textComponent.alignment = TextAlignmentOptions.Center;
-            textComponent.overflowMode = TextOverflowModes.Overflow;
             textComponent.raycastTarget = false;
 
             RectTransform textRect = textTransform as RectTransform;
@@ -292,12 +281,6 @@ namespace RelicHunter.UI
             RectTransform scoreRect = scorePanel as RectTransform;
             if (scoreRect == null)
                 return;
-
-            scoreRect.anchorMin = new Vector2(1f, 1f);
-            scoreRect.anchorMax = new Vector2(1f, 1f);
-            scoreRect.pivot = new Vector2(1f, 1f);
-            scoreRect.anchoredPosition = new Vector2(-24f, -40f);
-            scoreRect.sizeDelta = new Vector2(611f, 122f);
 
             if (this.scorePanel != null)
             {
